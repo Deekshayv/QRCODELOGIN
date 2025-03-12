@@ -9,7 +9,7 @@ app.use(bodyParser.json());
 
 // MySQL Database Connection
 const db = mysql.createConnection({
-    host: "localhost", 
+    host: "${{RAILWAY_PRIVATE_DOMAIN}}", 
     port: 3306,        
     user: "root",      
     password: "25Sripriya02@", 
