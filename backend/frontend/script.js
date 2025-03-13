@@ -78,9 +78,7 @@ document.getElementById("scanQR").addEventListener("click", function () {
             console.error("Error scanning QR Code:", error);
             alert("Failed to scan QR Code. Please try again.");
         });
+    }
 
-    }, (errorMessage) => {
-        console.error("QR Scanner Error:", errorMessage);
-        alert("QR Code scanning failed. Make sure the QR code is valid and visible.");
-    });
-});
+    
+        
