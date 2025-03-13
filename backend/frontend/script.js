@@ -59,7 +59,9 @@ document.getElementById("scanQR").addEventListener("click", function () {
 
     scanner.render((decodedText) => {
         scanner.clear(); // Stop scanner after successful scan
-        console.log("Scanned QR Code:", decodedText); // Debugging log
+        console.log("Scanned QR Code:", decodedText);
+        // Debugging log
+         alert("✅ Scanned: " + decodedText); 
 
         fetch("https://qrcodelogin.onrender.com/scan-qr", {
             method: "POST",
