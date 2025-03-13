@@ -59,7 +59,6 @@ document.getElementById("scanQR").addEventListener("click", function () {
 
     scanner.render((decodedText) => {
         scanner.clear(); // Stop scanner after successful scan
-
         console.log("Scanned QR Code:", decodedText); // Debugging log
 
         fetch("https://qrcodelogin.onrender.com/scan-qr", {
@@ -67,18 +66,19 @@ document.getElementById("scanQR").addEventListener("click", function () {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ serialNumber: decodedText })
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error("Server returned an error.");
+            }
+            return res.json();
+        })
         .then(data => {
             alert(data.message);
-
-            // ✅ Disable Scan QR Code Button after successful scan
-            document.getElementById("scanQR").disabled = true;
+            document.getElementById("scanQR").disabled = true; // Disable Scan Button
         })
         .catch(error => {
             console.error("Error scanning QR Code:", error);
             alert("Failed to scan QR Code. Please try again.");
         });
-    }
-
-    
-        
+    }); // ✅ Fixed Syntax Error (Added Closing Parenthesis)
+});
