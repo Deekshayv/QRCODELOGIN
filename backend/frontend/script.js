@@ -1,7 +1,7 @@
 document.getElementById("sendOTP").addEventListener("click", function () {
     let phone = document.getElementById("phone").value;
 
-    fetch("http://localhost:3000/send-otp", {
+    fetch("https://qrcodelogin.onrender.com/send-otp", {...})
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber: phone }) // ✅ Corrected key name
@@ -26,7 +26,7 @@ document.getElementById("sendOTP").addEventListener("click", function () {
 document.getElementById("verifyOTP").addEventListener("click", function () {
     let otp = document.getElementById("otp").value;
 
-    fetch("http://localhost:3000/verify-otp", {
+    fetch("https://qrcodelogin.onrender.com/verify-otp",{...})
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ otp })
@@ -58,7 +58,7 @@ document.getElementById("scanQR").addEventListener("click", function () {
 
         console.log("Scanned QR Code:", decodedText); // Debugging log
 
-        fetch("http://localhost:3000/scan-qr", {
+        fetch("https://qrcodelogin.onrender.com/scan-qr", {...})
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ serialNumber: decodedText })
