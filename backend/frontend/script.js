@@ -1,7 +1,7 @@
 document.getElementById("sendOTP").addEventListener("click", function () {
     let phone = document.getElementById("phone").value;
 
-    fetch("https://qrcodelogin.onrender.com/send-otp", {...})
+    fetch("https://qrcodelogin.onrender.com/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber: phone }) // ✅ Corrected key name
@@ -22,14 +22,14 @@ document.getElementById("sendOTP").addEventListener("click", function () {
     });
 });
 
-
 document.getElementById("verifyOTP").addEventListener("click", function () {
     let otp = document.getElementById("otp").value;
+    let phone = document.getElementById("phone").value; // ✅ Ensure phone number is sent
 
-    fetch("https://qrcodelogin.onrender.com/verify-otp",{...})
+    fetch("https://qrcodelogin.onrender.com/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ otp })
+        body: JSON.stringify({ phoneNumber: phone, otp }) // ✅ Added phoneNumber
     })
     .then(res => res.json())
     .then(data => {
@@ -49,16 +49,20 @@ document.getElementById("verifyOTP").addEventListener("click", function () {
     });
 });
 
-// Function to scan QR Code
+// Declare QR Scanner globally
+let scanner;
+
 document.getElementById("scanQR").addEventListener("click", function () {
-    let scanner = new Html5QrcodeScanner("qr-video", { fps: 10, qrbox: 250 });
+    if (!scanner) {
+        scanner = new Html5QrcodeScanner("qr-video", { fps: 10, qrbox: 250 });
+    }
 
     scanner.render((decodedText) => {
-        scanner.clear();
+        scanner.clear(); // Stop scanner after successful scan
 
         console.log("Scanned QR Code:", decodedText); // Debugging log
 
-        fetch("https://qrcodelogin.onrender.com/scan-qr", {...})
+        fetch("https://qrcodelogin.onrender.com/scan-qr", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ serialNumber: decodedText })
