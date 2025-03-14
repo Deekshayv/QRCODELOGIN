@@ -50,7 +50,7 @@ document.getElementById("verifyOTP").addEventListener("click", function () {
 });
 
 // Declare QR Scanner globally
-let scanner;
+let scanner=null;
 
 document.getElementById("scanQR").addEventListener("click", function () {
     if (!scanner) {
