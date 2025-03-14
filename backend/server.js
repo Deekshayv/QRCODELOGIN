@@ -5,7 +5,7 @@ const bodyParser = require("body-parser");
 const mysql = require("mysql2");
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin:"https://qrcodelogin-1.onrender.com"}));
 app.use(bodyParser.json());
 
 // MySQL Database Connection
