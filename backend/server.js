@@ -6,18 +6,17 @@ const app = express();
 app.use(cors({ origin: "https://qrcodelogin-1.onrender.com" }));
 app.use(bodyParser.json());
 
-// ✅ Allowed Serial Numbers (Only these will be accepted)
-const allowedSerialNumbers = ["123456789", "987654321", "ABC123DEF", "QRCODE2025"];
-
+// Store OTPs mapped to phone numbers
 let otpStore = {};
 
-// Base Route
+// Base URL Route
 app.get("/", (req, res) => {
     res.send("Server is running successfully!");
 });
 
 // Generate and Send OTP
 app.post("/send-otp", (req, res) => {
+    console.log("Received request body:", req.body);
     const { phone } = req.body;
 
     if (!phone) {
@@ -25,7 +24,7 @@ app.post("/send-otp", (req, res) => {
     }
 
     const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
-    otpStore[phone] = otp; 
+    otpStore[phone] = otp; // Store OTP against phone number
 
     console.log(`Generated OTP for ${phone}: ${otp}`);
 
@@ -36,28 +35,28 @@ app.post("/send-otp", (req, res) => {
 app.post("/verify-otp", (req, res) => {
     const { phone, otp } = req.body;
 
+    console.log("Stored OTP:", otpStore[phone]);
+    console.log("Received OTP:", otp);
+
     if (otpStore[phone] && otpStore[phone].toString() === otp.toString()) {
-        delete otpStore[phone]; 
+        delete otpStore[phone]; // Remove OTP after successful verification
         res.json({ success: true, message: "OTP Verified!" });
     } else {
         res.json({ success: false, message: "Invalid OTP! Please try again." });
     }
 });
 
-// Scan QR Code (Only for Allowed Serial Numbers)
+// Scan QR Code (Fixed Request Body)
 app.post("/scan-qr", (req, res) => {
-    const { serialNumber } = req.body;
-    console.log("Received Serial Number:", serialNumber);
+    console.log("Received request body:", req.body);
+    const { qr_code } = req.body; // Ensure we are receiving 'qr_code' from frontend
 
-    if (!serialNumber) {
-        return res.status(400).json({ message: "Serial number is required!" });
+    if (!qr_code) {
+        return res.status(400).json({ message: "QR Code is required!" });
     }
 
-    if (allowedSerialNumbers.includes(serialNumber)) {
-        return res.json({ success: true, message: "✅ QR Code Scanned Successfully!" });
-    } else {
-        return res.json({ success: false, message: "❌ Invalid QR Code!" });
-    }
+    console.log("Received QR Code:", qr_code);
+    return res.json({ message: "QR Code scanned successfully!" });
 });
 
 // Start the server
