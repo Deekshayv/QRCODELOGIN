@@ -7,22 +7,22 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// MySQL Database Connection
-//const db = mysql.createConnection({
-   // host: "${{RAILWAY_PRIVATE_DOMAIN}}", 
-    //port: 3306,        
-    //user: "root",      
-    //password: "25Sripriya02@", 
-    //database: "qr_system"
-//});
+MySQL Database Connection
+const db = mysql.createConnection({
+    host: "mysql.railway.internal", 
+    port: "3306",        
+    user: "root",      
+    password: "xxVLGOoGjARZtJUuSbIqQkSxwpLEWmft", 
+    database: "railway"
+});
 
-//db.connect((err) => {
-  //  if (err) {
-       // console.error("Database connection failed: ", err);
-    //} else {
-        //console.log("Connected to MySQL Database");
-   // }
-//});
+db.connect((err) => {
+   if (err) {
+        console.error("Database connection failed: ", err);
+    } else {
+        console.log("Connected to MySQL Database");
+    }
+});
 
 // Store OTPs mapped to phone numbers
 let otpStore = {};
