@@ -1,86 +1,67 @@
-document.getElementById("sendOTP").addEventListener("click", function () {
-    let phone = document.getElementById("phone").value;
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
 
-    fetch("https://qrcodelogin.onrender.com/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: phone }) // ✅ Corrected key name
-    })
-    .then(res => res.json())
-    .then(data => {
-        console.log("Received OTP:", data.otp); // ✅ Debugging log
-        document.getElementById("otpSection").style.display = "block";
-        document.getElementById("otpDisplay").innerText = "Your OTP: " + data.otp;
+const app = express();
+app.use(cors({ origin: "https://qrcodelogin-1.onrender.com" }));
+app.use(bodyParser.json());
 
-        // ✅ Disable Phone Input and Send OTP Button
-        document.getElementById("phone").disabled = true;
-        document.getElementById("sendOTP").disabled = true;
-    })
-    .catch(error => {
-        console.error("Error sending OTP:", error);
-        alert("Failed to send OTP. Try again.");
-    });
+// ✅ Allowed Serial Numbers (Only these will be accepted)
+const allowedSerialNumbers = ["123456789", "987654321", "ABC123DEF", "QRCODE2025"];
+
+let otpStore = {};
+
+// Base Route
+app.get("/", (req, res) => {
+    res.send("Server is running successfully!");
 });
 
-document.getElementById("verifyOTP").addEventListener("click", function () {
-    let otp = document.getElementById("otp").value;
-    let phone = document.getElementById("phone").value; // ✅ Ensure phone number is sent
+// Generate and Send OTP
+app.post("/send-otp", (req, res) => {
+    const { phone } = req.body;
 
-    fetch("https://qrcodelogin.onrender.com/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: phone, otp }) // ✅ Added phoneNumber
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            document.getElementById("qrSection").style.display = "block"; // Show QR Scanner
-
-            // ✅ Disable OTP Input and Verify OTP Button
-            document.getElementById("otp").disabled = true;
-            document.getElementById("verifyOTP").disabled = true;
-        } else {
-            alert("Invalid OTP!");
-        }
-    })
-    .catch(error => {
-        console.error("Error verifying OTP:", error);
-        alert("OTP verification failed.");
-    });
-});
-
-// Declare QR Scanner globally
-let scanner=null;
-
-document.getElementById("scanQR").addEventListener("click", function () {
-    if (!scanner) {
-        scanner = new Html5QrcodeScanner("qr-video", { fps: 10, qrbox: 250 });
+    if (!phone) {
+        return res.status(400).json({ message: "Phone number is required!" });
     }
 
-    scanner.render((decodedText) => {
-        scanner.clear(); // Stop scanner after successful scan
-        console.log("Scanned QR Code:", decodedText);
-        // Debugging log
-         alert("✅ Scanned: " + decodedText); 
+    const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
+    otpStore[phone] = otp; 
 
-        fetch("https://qrcodelogin.onrender.com/scan-qr", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ serialNumber: decodedText })
-        })
-        .then(res => {
-            if (!res.ok) {
-                throw new Error("Server returned an error.");
-            }
-            return res.json();
-        })
-        .then(data => {
-            alert(data.message);
-            document.getElementById("scanQR").disabled = true; // Disable Scan Button
-        })
-        .catch(error => {
-            console.error("Error scanning QR Code:", error);
-            alert("Failed to scan QR Code. Please try again.");
-        });
-    }); // ✅ Fixed Syntax Error (Added Closing Parenthesis)
+    console.log(`Generated OTP for ${phone}: ${otp}`);
+
+    res.json({ otp });
+});
+
+// Verify OTP
+app.post("/verify-otp", (req, res) => {
+    const { phone, otp } = req.body;
+
+    if (otpStore[phone] && otpStore[phone].toString() === otp.toString()) {
+        delete otpStore[phone]; 
+        res.json({ success: true, message: "OTP Verified!" });
+    } else {
+        res.json({ success: false, message: "Invalid OTP! Please try again." });
+    }
+});
+
+// Scan QR Code (Only for Allowed Serial Numbers)
+app.post("/scan-qr", (req, res) => {
+    const { serialNumber } = req.body;
+    console.log("Received Serial Number:", serialNumber);
+
+    if (!serialNumber) {
+        return res.status(400).json({ message: "Serial number is required!" });
+    }
+
+    if (allowedSerialNumbers.includes(serialNumber)) {
+        return res.json({ success: true, message: "✅ QR Code Scanned Successfully!" });
+    } else {
+        return res.json({ success: false, message: "❌ Invalid QR Code!" });
+    }
+});
+
+// Start the server
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
