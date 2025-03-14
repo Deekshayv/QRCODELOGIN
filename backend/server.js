@@ -1,27 +1,27 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const mysql = require("mysql");
+const mysql = require("mysql2");
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
 // MySQL Database Connection
-const db = mysql.createConnection({
-    host: "mysql.railway.internal", 
-    port: "3306",        
-    user: "root",      
-    password: "xxVLGOoGjARZtJUuSbIqQkSxwpLEWmft", 
-    database: "railway"
-});
+//const db = mysql.createConnection({
+  //  host: "mysql.railway.internal", 
+    //port: "3306",        
+   // user: "root",      
+   // password: "xxVLGOoGjARZtJUuSbIqQkSxwpLEWmft", 
+  //  database: "railway"
+//});
 
-db.connect((err) => {
-   if (err) {
-        console.error("Database connection failed: ", err);
-        process.exit(1); // Exit the app if DB connection fails
-   } else {
-        console.log("Connected to MySQL Database");
+//db.connect((err) => {
+//   if (err) {
+     //   console.error("Database connection failed: ", err);
+      //  process.exit(1); // Exit the app if DB connection fails
+  // } else {
+  //      console.log("Connected to MySQL Database");
    }
 });
 
