@@ -7,7 +7,7 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-MySQL Database Connection
+// MySQL Database Connection
 const db = mysql.createConnection({
     host: "mysql.railway.internal", 
     port: "3306",        
@@ -19,9 +19,10 @@ const db = mysql.createConnection({
 db.connect((err) => {
    if (err) {
         console.error("Database connection failed: ", err);
-    } else {
+        process.exit(1); // Exit the app if DB connection fails
+   } else {
         console.log("Connected to MySQL Database");
-    }
+   }
 });
 
 // Store OTPs mapped to phone numbers
@@ -35,7 +36,7 @@ app.get("/", (req, res) => {
 // Generate and Send OTP
 app.post("/send-otp", (req, res) => {
     console.log("Received request body:", req.body); 
-    const { phone} = req.body;
+    const { phone } = req.body;
     
     if (!phone) {
         return res.status(400).json({ message: "Phone number is required!" });
@@ -47,7 +48,7 @@ app.post("/send-otp", (req, res) => {
     console.log(`Generated OTP for ${phone}: ${otp}`); // Debugging
 
     res.json({ otp });
-});  // <-- This closing bracket was missing
+});
 
 // Verify OTP
 app.post("/verify-otp", (req, res) => {
@@ -63,7 +64,6 @@ app.post("/verify-otp", (req, res) => {
         res.json({ success: false, message: "Invalid OTP! Please try again." });
     }
 });
-
 
 // Scan QR Code and store in database
 app.post("/scan-qr", (req, res) => {
@@ -102,7 +102,7 @@ app.post("/scan-qr", (req, res) => {
 });
 
 // Start the server
-const PORT=process.env.PORT || 10000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log('Server running on port ${PORT}');
+    console.log(`Server running on port ${PORT}`); // Fixed string interpolation
 });
