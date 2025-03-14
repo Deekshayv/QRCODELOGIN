@@ -1,3 +1,4 @@
+
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
@@ -9,21 +10,21 @@ app.use(bodyParser.json());
 
 // MySQL Database Connection
 //const db = mysql.createConnection({
-  //  host: "mysql.railway.internal", 
-    //port: "3306",        
+    //host: "localhost", 
+  //  port: 3306,        
    // user: "root",      
-   // password: "xxVLGOoGjARZtJUuSbIqQkSxwpLEWmft", 
-  //  database: "railway"
+ //   password: "25Sripriya02@", 
+   // database: "qr_system"
 //});
 
 //db.connect((err) => {
-//   if (err) {
-     //   console.error("Database connection failed: ", err);
-      //  process.exit(1); // Exit the app if DB connection fails
-  // } else {
-  //      console.log("Connected to MySQL Database");
-   }
-});
+//    if (err) {
+       // console.error("Database connection failed: ", err);
+       // process.exit(1);
+  //  } else {
+    //    console.log("Connected to MySQL Database");
+ //   }
+//});
 
 // Store OTPs mapped to phone numbers
 let otpStore = {};
@@ -48,7 +49,7 @@ app.post("/send-otp", (req, res) => {
     console.log(`Generated OTP for ${phone}: ${otp}`); // Debugging
 
     res.json({ otp });
-});
+});  
 
 // Verify OTP
 app.post("/verify-otp", (req, res) => {
@@ -68,6 +69,7 @@ app.post("/verify-otp", (req, res) => {
 // Scan QR Code and store in database
 app.post("/scan-qr", (req, res) => {
     const { serialNumber } = req.body;
+    console.log("Received serial Number:", serialNumber);
 
     if (!serialNumber) {
         return res.status(400).json({ message: "Serial number is required!" });
@@ -104,5 +106,5 @@ app.post("/scan-qr", (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`); // Fixed string interpolation
+    console.log('Server running on port ${PORT}');
 });
