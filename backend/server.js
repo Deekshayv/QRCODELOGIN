@@ -4,12 +4,12 @@ const bodyParser = require("body-parser");
 const mysql = require("mysql2");
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin:"https://qrcodelogin-1.onrender.com"}));
 app.use(bodyParser.json());
 
 // MySQL Database Connection
 //const db = mysql.createConnection({
-  //  host: "localhost", 
+    //host: "localhost", 
   //  port: 3306,        
    // user: "root",      
  //   password: "25Sripriya02@", 
@@ -17,12 +17,12 @@ app.use(bodyParser.json());
 //});
 
 //db.connect((err) => {
-  //  if (err) {
-        //console.error("Database connection failed: ", err);
+//    if (err) {
+       // console.error("Database connection failed: ", err);
        // process.exit(1);
   //  } else {
-      //  console.log("Connected to MySQL Database");
-   // }
+    //    console.log("Connected to MySQL Database");
+ //   }
 //});
 
 // Store OTPs mapped to phone numbers
