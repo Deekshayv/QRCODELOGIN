@@ -23,16 +23,18 @@ document.getElementById("sendOTP").addEventListener("click", function() {
         if (data.otp) {
             document.getElementById("otpSection").style.display = "block";
             document.getElementById("otpDisplay").innerText = "Your OTP: " + data.otp;
-            
+
             document.getElementById("phone").style.display = "none";
             document.getElementById("sendOTP").style.display = "none";
             document.getElementById("phoneLabel").style.display = "none";
 
+            // Automatically hide OTP after 30 seconds
             setTimeout(() => {
-                document.getElementById("otpDisplay").innerText = "Your OTP has expired. Request a new one.";
+                document.getElementById("otpDisplay").innerText = "Your OTP has expired.";
+                document.getElementById("otp").value = ""; // Clear input field
                 document.getElementById("otp").disabled = true;
                 document.getElementById("verifyOTP").disabled = true;
-            }, 30000);
+            }, 30000); // 30 seconds
         } else {
             alert("Failed to receive OTP. Try again.");
         }
@@ -42,7 +44,6 @@ document.getElementById("sendOTP").addEventListener("click", function() {
         alert("OTP request failed. Please check your network and try again.");
     });
 });
-
 
 // Verify OTP
 document.getElementById("verifyOTP").addEventListener("click", function() {
@@ -107,3 +108,4 @@ document.getElementById("scanQR").addEventListener("click", function() {
         }
     );
 });
+
