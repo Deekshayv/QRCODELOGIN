@@ -3,33 +3,46 @@ let storedPhoneNumber = "";
 
 // Send OTP
 document.getElementById("sendOTP").addEventListener("click", function() {
-    let phone = document.getElementById("phone").value;
+    let phone = document.getElementById("phone").value.trim(); // Trim spaces
     storedPhoneNumber = phone;
+
+    if (!phone) {
+        alert("Please enter a valid phone number!");
+        return;
+    }
+
+    console.log("Sending OTP to:", phone); // Debugging Log
 
     fetch("https://qrcodelogin-1.onrender.com/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone })
     })
-    .then(res => res.json())
+    .then(response => response.json())
     .then(data => {
-        document.getElementById("otpSection").style.display = "block";
-        document.getElementById("otpDisplay").innerText = "Your OTP: " + data.otp;
-        document.getElementById("phone").style.display = "none";
-        document.getElementById("sendOTP").style.display = "none";
-        document.getElementById("phoneLabel").style.display = "none";
-        
-        setTimeout(() => {
-            document.getElementById("otpDisplay").innerText = "Your OTP has expired. Request a new one.";
-            document.getElementById("otp").disabled = true;
-            document.getElementById("verifyOTP").disabled = true;
-        }, 30000);
+        if (data.otp) {
+            document.getElementById("otpSection").style.display = "block";
+            document.getElementById("otpDisplay").innerText = "Your OTP: " + data.otp;
+            
+            document.getElementById("phone").style.display = "none";
+            document.getElementById("sendOTP").style.display = "none";
+            document.getElementById("phoneLabel").style.display = "none";
+
+            setTimeout(() => {
+                document.getElementById("otpDisplay").innerText = "Your OTP has expired. Request a new one.";
+                document.getElementById("otp").disabled = true;
+                document.getElementById("verifyOTP").disabled = true;
+            }, 30000);
+        } else {
+            alert("Failed to receive OTP. Try again.");
+        }
     })
     .catch(error => {
         console.error("Error sending OTP:", error);
-        alert("Failed to send OTP. Try again.");
+        alert("OTP request failed. Please check your network and try again.");
     });
 });
+
 
 // Verify OTP
 document.getElementById("verifyOTP").addEventListener("click", function() {
