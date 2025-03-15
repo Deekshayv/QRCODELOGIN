@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,7 +6,7 @@
     <title>QR Code Login</title>
     <link rel="stylesheet" href="styles.css">
     
-    <script src="https://unpkg.com/html5-qrcode"></script> <!-- QR Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script> <!-- Correct QR Scanner Library -->
     <script src="script.js" defer></script>
     <style>
         input, button {
@@ -41,18 +40,18 @@
         <div id="qrSection" style="display: none;">
             <button id="scanQR">Scan QR Code</button>
             <p id="scanMessage" style="color: rgb(0, 128, 2); font-weight: bold;"></p>
-            <div id="qr-video" style="width: 100%;"></div>
+            <div id="qr-video" style="width: 100%; height: 250px;"></div>
         </div>
     </div>
 
     <script>
-        let scanner; 
-        let storedPhoneNumber = ""; // Store phone number globally
+        let scanner;
+        let storedPhoneNumber = "";
 
         // Send OTP
         document.getElementById("sendOTP").addEventListener("click", function() {
             let phone = document.getElementById("phone").value;
-            storedPhoneNumber = phone; // Store it for later use
+            storedPhoneNumber = phone;
 
             fetch("https://qrcodelogin.onrender.com/send-otp", {
                 method: "POST",
@@ -63,13 +62,10 @@
             .then(data => {
                 document.getElementById("otpSection").style.display = "block";
                 document.getElementById("otpDisplay").innerText = "Your OTP: " + data.otp;
-
-                // Hide phone number input after sending OTP
                 document.getElementById("phone").style.display = "none";
                 document.getElementById("sendOTP").style.display = "none";
                 document.getElementById("phoneLabel").style.display = "none";
-
-                // Expire OTP after 30 seconds
+                
                 setTimeout(() => {
                     document.getElementById("otpDisplay").innerText = "Your OTP has expired. Request a new one.";
                     document.getElementById("otp").disabled = true;
@@ -89,7 +85,7 @@
             fetch("https://qrcodelogin.onrender.com/verify-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone: storedPhoneNumber, otp }) // Use stored phone number
+                body: JSON.stringify({ phone: storedPhoneNumber, otp })
             })
             .then(res => res.json())
             .then(data => {
@@ -112,34 +108,39 @@
         // Scan QR Code
         document.getElementById("scanQR").addEventListener("click", function() {
             if (!scanner) {
-                scanner = new Html5QrcodeScanner("qr-video", { fps: 10, qrbox: 250 });
+                scanner = new Html5Qrcode("qr-video");
             }
 
-            scanner.render((decodedText) => {
-                console.log("Scanned QR Code:", decodedText);
-                scanner.clear(); // Stop scanner
-                scanner = null;
-
-                fetch("https://qrcodelogin.onrender.com/scan-qr", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ phone: storedPhoneNumber, qrData: decodedText }) // Send phone + QR data
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        document.getElementById("scanMessage").innerText = "QR Code scanned successfully!";
-                    } else {
+            scanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: 250 },
+                (decodedText) => {
+                    console.log("Scanned QR Code:", decodedText);
+                    scanner.stop().then(() => { scanner.clear(); scanner = null; });
+                    
+                    fetch("https://qrcodelogin.onrender.com/scan-qr", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ phone: storedPhoneNumber, qrData: decodedText })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById("scanMessage").innerText = "QR Code scanned successfully!";
+                        } else {
+                            alert("QR Code scanning failed.");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error scanning QR Code:", error);
                         alert("QR Code scanning failed.");
-                    }
-                })
-                .catch(error => {
-                    console.error("Error scanning QR Code:", error);
-                    alert("QR Code scanning failed.");
-                });
-            });
+                    });
+                },
+                (errorMessage) => {
+                    console.warn("Scanning error:", errorMessage);
+                }
+            );
         });
     </script>
-
 </body>
 </html>
