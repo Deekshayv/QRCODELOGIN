@@ -24,7 +24,7 @@ pool.connect()
         console.error("Database connection failed: ", err);
         process.exit(1);
 
-    } else {
+    });else {
         console.log("Connected to MySQL Database");
     }
 });
