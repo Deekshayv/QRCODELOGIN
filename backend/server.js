@@ -1,29 +1,28 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const mysql = require("mysql2");
+const { Pool } = require("pg"); // Import PostgreSQL client
 
 const app = express();
-app.use(cors({ origin:"https://qrcodelogin-1.onrender.com"}));
+app.use(cors({ origin: "https://qrcodelogin-1.onrender.com" }));
 app.use(bodyParser.json());
 
-// MySQL Database Connection
-//const db = mysql.createConnection({
-    //host: "localhost", 
-  //  port: 3306,        
-   // user: "root",      
- //   password: "25Sripriya02@", 
-   // database: "qr_system"
-//});
+// PostgreSQL Database Connection
+const pool = new Pool({
+    user: "mydatabase_25kt_user",       // Replace with your PostgreSQL username
+    host: "dpg-cv9uocbtq21c73boolt0-a",                // Change if using a remote database
+    database: "mydatabase_25kt",            // Replace with your database name
+    password: "LcmkSg9GxhRjBprMmL9egj1GB9wBe6KR",        // Replace with your PostgreSQL password
+    port: 5432,                       // Default PostgreSQL port
+});
 
-//db.connect((err) => {
-//    if (err) {
-       // console.error("Database connection failed: ", err);
-       // process.exit(1);
-  //  } else {
-    //    console.log("Connected to MySQL Database");
- //   }
-//});
+// Test database connection
+pool.connect()
+    .then(() => console.log("Connected to PostgreSQL Database"))
+    .catch((err) => {
+        console.error("Database connection failed: ", err);
+        process.exit(1);
+    });
 
 // Store OTPs mapped to phone numbers
 let otpStore = {};
@@ -35,9 +34,9 @@ app.get("/", (req, res) => {
 
 // Generate and Send OTP
 app.post("/send-otp", (req, res) => {
-    console.log("Received request body:", req.body); 
+    console.log("Received request body:", req.body);
     const { phone } = req.body;
-    
+
     if (!phone) {
         return res.status(400).json({ message: "Phone number is required!" });
     }
@@ -48,7 +47,7 @@ app.post("/send-otp", (req, res) => {
     console.log(`Generated OTP for ${phone}: ${otp}`); // Debugging
 
     res.json({ otp });
-});  
+});
 
 // Verify OTP
 app.post("/verify-otp", (req, res) => {
@@ -66,7 +65,7 @@ app.post("/verify-otp", (req, res) => {
 });
 
 // Scan QR Code and store in database
-app.post("/scan-qr", (req, res) => {
+app.post("/scan-qr", async (req, res) => {
     const { serialNumber } = req.body;
     console.log("Received serial Number:", serialNumber);
 
@@ -74,36 +73,34 @@ app.post("/scan-qr", (req, res) => {
         return res.status(400).json({ message: "Serial number is required!" });
     }
 
-    // Check if the QR code exists in the database
-    db.query("SELECT * FROM qr_codes WHERE serial_number = ?", [serialNumber], (err, results) => {
-        if (err) {
-            return res.status(500).json({ message: "Database error", error: err });
-        }
+    try {
+        // Check if the QR code exists in the database
+        const result = await pool.query("SELECT * FROM qr_codes WHERE serial_number = $1", [serialNumber]);
 
-        if (results.length === 0) {
+        if (result.rows.length === 0) {
             return res.json({ message: "QR Code not found!" });
         }
 
-        if (results[0].scanned === 1) {
+        if (result.rows[0].scanned) {
             return res.json({ message: "QR Code already scanned!" });
         }
 
         // If QR code is not scanned, update it
-        db.query(
-            "UPDATE qr_codes SET scanned = 1, scanned_at = NOW() WHERE serial_number = ?", 
-            [serialNumber], 
-            (err) => {
-                if (err) {
-                    return res.status(500).json({ message: "Failed to update QR Code status" });
-                }
-                return res.json({ message: "QR Code scanned successfully!" });
-            }
+        await pool.query(
+            "UPDATE qr_codes SET scanned = TRUE, scanned_at = NOW() WHERE serial_number = $1",
+            [serialNumber]
         );
-    });
+
+        return res.json({ message: "QR Code scanned successfully!" });
+
+    } catch (error) {
+        console.error("Database error:", error);
+        return res.status(500).json({ message: "Database error", error });
+    }
 });
 
 // Start the server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log('Server running on port ${PORT}');
+    console.log(`Server running on port ${PORT}`);
 });
