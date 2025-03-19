@@ -10,10 +10,10 @@ app.use(bodyParser.json());
 // PostgreSQL Database Connection
 const pool = new Pool({
     user: "mydatabase_25kt_user",       // Replace with your PostgreSQL username
-    host: "dpg-cv9uocbtq21c73boolt0-a",                // Change if using a remote database
-    database: "mydatabase_25kt",            // Replace with your database name
-    password: "LcmkSg9GxhRjBprMmL9egj1GB9wBe6KR",        // Replace with your PostgreSQL password
-    port: 5432,                       // Default PostgreSQL port
+    host: "dpg-cv9uocbtq21c73boolt0-a", // Change if using a remote database
+    database: "mydatabase_25kt",        // Replace with your database name
+    password: "LcmkSg9GxhRjBprMmL9egj1GB9wBe6KR", // Replace with your PostgreSQL password
+    port: 5432,                         // Default PostgreSQL port
 });
 
 // Test database connection
