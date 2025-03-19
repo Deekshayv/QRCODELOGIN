@@ -19,6 +19,7 @@ const db = mysql.createConnection({
 db.connect((err) => {
     if (err) {
         console.error("Database connection failed: ", err);
+        process.exit(1);
     } else {
         console.log("Connected to MySQL Database");
     }
@@ -35,7 +36,7 @@ app.get("/", (req, res) => {
 // Generate and Send OTP
 app.post("/send-otp", (req, res) => {
     console.log("Received request body:", req.body); 
-    const { phone} = req.body;
+    const { phone } = req.body;
     
     if (!phone) {
         return res.status(400).json({ message: "Phone number is required!" });
@@ -47,7 +48,7 @@ app.post("/send-otp", (req, res) => {
     console.log(`Generated OTP for ${phone}: ${otp}`); // Debugging
 
     res.json({ otp });
-});  // <-- This closing bracket was missing
+});  
 
 // Verify OTP
 app.post("/verify-otp", (req, res) => {
@@ -64,10 +65,10 @@ app.post("/verify-otp", (req, res) => {
     }
 });
 
-
 // Scan QR Code and store in database
 app.post("/scan-qr", (req, res) => {
     const { serialNumber } = req.body;
+    console.log("Received serial Number:", serialNumber);
 
     if (!serialNumber) {
         return res.status(400).json({ message: "Serial number is required!" });
