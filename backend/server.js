@@ -16,6 +16,7 @@ const pool = new Pool({
     port: 5432,                         // Default PostgreSQL port
 });
 
+
 // Test database connection
 pool.connect()
     .then(() => console.log("Connected to PostgreSQL Database"))
