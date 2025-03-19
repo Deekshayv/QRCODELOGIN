@@ -16,7 +16,6 @@ const pool = new Pool({
     port: 5432,                         // Default PostgreSQL port
 });
 
-
 // Test database connection
 pool.connect()
     .then(() => console.log("Connected to PostgreSQL Database"))
@@ -24,10 +23,10 @@ pool.connect()
         console.error("Database connection failed: ", err);
         process.exit(1);
 
-    });else {
+    } else {
         console.log("Connected to MySQL Database");
     }
-});
+);
 
     
 
@@ -122,3 +121,4 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
