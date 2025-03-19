@@ -9,11 +9,11 @@ app.use(bodyParser.json());
 
 // PostgreSQL Database Connection
 const pool = new Pool({
-    user: "mydatabase_25kt_user",       // Replace with your PostgreSQL username
-    host: "dpg-cv9uocbtq21c73boolt0-a", // Change if using a remote database
-    database: "mydatabase_25kt",        // Replace with your database name
-    password: "LcmkSg9GxhRjBprMmL9egj1GB9wBe6KR", // Replace with your PostgreSQL password
-    port: 5432,                         // Default PostgreSQL port
+    user: "mydatabase_25kt_user",
+    host: "dpg-cv9uocbtq21c73boolt0-a",
+    database: "mydatabase_25kt",
+    password: "LcmkSg9GxhRjBprMmL9egj1GB9wBe6KR",
+    port: 5432,
 });
 
 // Test database connection
@@ -22,14 +22,7 @@ pool.connect()
     .catch((err) => {
         console.error("Database connection failed: ", err);
         process.exit(1);
-
-    } else {
-        console.log("Connected to MySQL Database");
-    }
-);
-
-    
-
+    });
 
 // Store OTPs mapped to phone numbers
 let otpStore = {};
@@ -41,14 +34,8 @@ app.get("/", (req, res) => {
 
 // Generate and Send OTP
 app.post("/send-otp", (req, res) => {
-
-    console.log("Received request body:", req.body); 
-    const { phone } = req.body;
-    
-
     console.log("Received request body:", req.body);
     const { phone } = req.body;
-
 
     if (!phone) {
         return res.status(400).json({ message: "Phone number is required!" });
@@ -57,20 +44,16 @@ app.post("/send-otp", (req, res) => {
     const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
     otpStore[phone] = otp; // Store OTP against phone number
 
-    console.log(`Generated OTP for ${phone}: ${otp}`); // Debugging
+    console.log(`Generated OTP for ${phone}: ${otp}`);
 
     res.json({ otp });
-
-});  
-
-
-
+});
 
 // Verify OTP
 app.post("/verify-otp", (req, res) => {
     const { phone, otp } = req.body;
 
-    console.log("Stored OTP:", otpStore[phone]); // Debugging
+    console.log("Stored OTP:", otpStore[phone]);
     console.log("Received OTP:", otp);
 
     if (otpStore[phone] && otpStore[phone].toString() === otp.toString()) {
@@ -121,4 +104,5 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
 
