@@ -10,9 +10,9 @@ app.use(bodyParser.json());
 
 // PostgreSQL Database Connection
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: "postgresql://neondb_owner:npg_TeDH7Gu4bWfn@ep-fancy-fire-a5fzqtc0-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
     ssl: {
-        rejectUnauthorized: false // Allows SSL connections even if the certificate is self-signed
+        rejectUnauthorized: false // Allows SSL connections
     }
 });
 
@@ -100,6 +100,7 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
