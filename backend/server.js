@@ -1,7 +1,8 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const { Pool } = require("pg"); // Import PostgreSQL client
+const { Pool } = require("pg");
 
 const app = express();
 app.use(cors({ origin: "https://qrcodelogin-1.onrender.com" }));
@@ -9,11 +10,11 @@ app.use(bodyParser.json());
 
 // PostgreSQL Database Connection
 const pool = new Pool({
-    user: "mydatabase_25kt_user",
-    host: "dpg-cv9uocbtq21c73boolt0-a",
-    database: "mydatabase_25kt",
-    password: "LcmkSg9GxhRjBprMmL9egj1GB9wBe6KR",
-    port: 5432,
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
 });
 
 // Test database connection
@@ -42,8 +43,7 @@ app.post("/send-otp", (req, res) => {
     }
 
     const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
-    otpStore[phone] = otp; // Store OTP against phone number
-
+    otpStore[phone] = otp;
     console.log(`Generated OTP for ${phone}: ${otp}`);
 
     res.json({ otp });
@@ -52,12 +52,11 @@ app.post("/send-otp", (req, res) => {
 // Verify OTP
 app.post("/verify-otp", (req, res) => {
     const { phone, otp } = req.body;
-
     console.log("Stored OTP:", otpStore[phone]);
     console.log("Received OTP:", otp);
 
     if (otpStore[phone] && otpStore[phone].toString() === otp.toString()) {
-        delete otpStore[phone]; // Remove OTP after successful verification
+        delete otpStore[phone];
         res.json({ success: true, message: "OTP Verified!" });
     } else {
         res.json({ success: false, message: "Invalid OTP! Please try again." });
@@ -74,7 +73,6 @@ app.post("/scan-qr", async (req, res) => {
     }
 
     try {
-        // Check if the QR code exists in the database
         const result = await pool.query("SELECT * FROM qr_codes WHERE serial_number = $1", [serialNumber]);
 
         if (result.rows.length === 0) {
@@ -85,7 +83,6 @@ app.post("/scan-qr", async (req, res) => {
             return res.json({ message: "QR Code already scanned!" });
         }
 
-        // If QR code is not scanned, update it
         await pool.query(
             "UPDATE qr_codes SET scanned = TRUE, scanned_at = NOW() WHERE serial_number = $1",
             [serialNumber]
@@ -104,5 +101,6 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
 
 
