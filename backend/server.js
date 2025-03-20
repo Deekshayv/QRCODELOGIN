@@ -10,11 +10,10 @@ app.use(bodyParser.json());
 
 // PostgreSQL Database Connection
 const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false // Allows SSL connections even if the certificate is self-signed
+    }
 });
 
 // Test database connection
@@ -101,6 +100,7 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
