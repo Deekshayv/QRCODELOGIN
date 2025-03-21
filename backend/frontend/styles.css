@@ -142,6 +142,7 @@ button:hover {
     display: none;
 }
 
+/* Scan Message */
 #scanMessage {
     font-weight: bold;
     color: white;
@@ -152,3 +153,39 @@ button:hover {
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.952);
 }
+
+/* 🆕 "Download PDF" Button */
+#downloadPDF {
+    display: none;
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(90deg, #ff416c, #ff4b2b);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: 0.3s;
+    box-shadow: 0 4px 10px rgba(255, 100, 100, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
+    margin-top: 15px;
+}
+
+#downloadPDF:hover {
+    background: linear-gradient(90deg, #ff4b2b, #ff416c);
+    box-shadow: 0 6px 14px rgba(255, 100, 100, 0.8);
+}
+
+/* Animate "Download PDF" Button when Visible */
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+#downloadPDF.show {
+    display: block;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
