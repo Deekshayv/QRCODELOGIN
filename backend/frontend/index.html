@@ -48,7 +48,7 @@
 
         document.getElementById("sendOTP").addEventListener("click", function() {
             let phone = document.getElementById("phone").value;
-            fetch("https://qrcodelogin.onrender.com/send-otp", {
+            fetch("https://qrcodelogin-main-1.onrender.com/send-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ phone })
@@ -67,7 +67,7 @@
         document.getElementById("verifyOTP").addEventListener("click", function() {
             let phone = document.getElementById("phone").value;
             let otp = document.getElementById("otp").value;
-            fetch("https://qrcodelogin.onrender.com/verify-otp", {
+            fetch("https://qrcodelogin-main-1.onrender.com/verify-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ phone, otp })
