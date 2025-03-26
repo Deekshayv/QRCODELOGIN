@@ -3,17 +3,20 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
-const PDFDocument = require("pdfkit"); // PDF generation library
 
 const app = express();
 app.use(cors({ origin: "https://qrcodelogin-1.onrender.com" }));
 app.use(bodyParser.json());
 
+// PostgreSQL Database Connection
 const pool = new Pool({
     connectionString: "postgresql://neondb_owner:npg_TeDH7Gu4bWfn@ep-fancy-fire-a5fzqtc0-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
-    ssl: { rejectUnauthorized: false }
+    ssl: {
+        rejectUnauthorized: false // Allows SSL connections
+    }
 });
 
+// Test database connection
 pool.connect()
     .then(() => console.log("Connected to PostgreSQL Database"))
     .catch((err) => {
@@ -21,27 +24,36 @@ pool.connect()
         process.exit(1);
     });
 
+// Store OTPs mapped to phone numbers
 let otpStore = {};
 
+// Base URL Route
 app.get("/", (req, res) => {
     res.send("Server is running successfully!");
 });
 
+// Generate and Send OTP
 app.post("/send-otp", (req, res) => {
+    console.log("Received request body:", req.body);
     const { phone } = req.body;
+
     if (!phone) {
         return res.status(400).json({ message: "Phone number is required!" });
     }
 
     const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
     otpStore[phone] = otp;
-    console.log(`Generated OTP for ${phone}: ${otp}`);
+    console.log(Generated OTP for ${phone}: ${otp});
 
     res.json({ otp });
 });
 
+// Verify OTP
 app.post("/verify-otp", (req, res) => {
     const { phone, otp } = req.body;
+    console.log("Stored OTP:", otpStore[phone]);
+    console.log("Received OTP:", otp);
+
     if (otpStore[phone] && otpStore[phone].toString() === otp.toString()) {
         delete otpStore[phone];
         res.json({ success: true, message: "OTP Verified!" });
@@ -50,8 +62,11 @@ app.post("/verify-otp", (req, res) => {
     }
 });
 
+// Scan QR Code and store in database
 app.post("/scan-qr", async (req, res) => {
     const { serialNumber } = req.body;
+    console.log("Received serial Number:", serialNumber);
+
     if (!serialNumber) {
         return res.status(400).json({ message: "Serial number is required!" });
     }
@@ -72,10 +87,7 @@ app.post("/scan-qr", async (req, res) => {
             [serialNumber]
         );
 
-        res.json({
-            message: "QR Code scanned successfully!",
-            download: true // Let frontend know a download is available
-        });
+        return res.json({ message: "QR Code scanned successfully!" });
 
     } catch (error) {
         console.error("Database error:", error);
@@ -83,34 +95,8 @@ app.post("/scan-qr", async (req, res) => {
     }
 });
 
-// PDF Generation and Download
-app.get("/download-pdf", (req, res) => {
-    const { serialNumber } = req.query;
-    if (!serialNumber) {
-        return res.status(400).send("Serial number is required");
-    }
-
-    res.setHeader("Content-Disposition", `attachment; filename="QR_Scan_${serialNumber}.pdf"`);
-    res.setHeader("Content-Type", "application/pdf");
-
-    const doc = new PDFDocument();
-    doc.pipe(res);
-
-    doc.fontSize(20).text("QR Code Scan Report", { align: "center" });
-    doc.moveDown();
-    doc.fontSize(14).text(`Serial Number: ${serialNumber}`);
-    doc.fontSize(14).text(`Scanned At: ${new Date().toLocaleString()}`);
-    
-    doc.end();
-});
-
+// Start the server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(Server running on port ${PORT});
 });
-
-
-
-
-
-
