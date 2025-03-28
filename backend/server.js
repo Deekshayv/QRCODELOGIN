@@ -24,6 +24,21 @@ pool.connect()
 
 let otpStore = {};
 
+// Improved root endpoint
+app.get("/", (req, res) => {
+    res.json({
+        status: "Server is running",
+        endpoints: {
+            sendOTP: "POST /send-otp",
+            verifyOTP: "POST /verify-otp",
+            scanQR: "POST /scan-qr",
+            getUserScans: "POST /get-user-scans",
+            addQRCode: "POST /add-qr-code"
+        },
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Generate and Send OTP
 app.post("/send-otp", (req, res) => {
     const { phone } = req.body;
