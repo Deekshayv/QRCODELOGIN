@@ -11,6 +11,14 @@
         input, button {
             margin-bottom: 10px;
         }
+        #timer {
+            color: red;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .expired {
+            color: red;
+        }
     </style>
 </head>
 <body>
@@ -37,6 +45,7 @@
 
         <!-- QR Scanner Section (Initially Hidden) -->
         <div id="qrSection" style="display: none;">
+            <div id="timer"></div>
             <button id="scanQR">Scan QR Code</button>
             <p id="scanMessage" style="color: rgb(0, 128, 2); font-weight: bold;"></p>
             <div id="qr-video" style="width: 100%;"></div>
@@ -45,6 +54,8 @@
 
     <script>
         let scanner; // Scanner instance
+        let qrTimer; // Timer for QR code scanning
+        const QR_TIME_LIMIT = 60; // 60 seconds to scan QR code
 
         // Send OTP Functionality
         document.getElementById("sendOTP").addEventListener("click", function() {
@@ -94,6 +105,9 @@
                     document.getElementById("otp").style.display = "none";
                     document.getElementById("verifyOTP").style.display = "none";
                     document.getElementById("otpLabel").style.display = "none";
+                    
+                    // Start the QR code scanning timer
+                    startQrTimer();
                 } else {
                     alert("Invalid OTP!");
                 }
@@ -114,6 +128,7 @@
                 console.log("Scanned QR Code:", decodedText);
                 scanner.clear(); // Stop scanner
                 scanner = null;
+                clearInterval(qrTimer); // Stop the timer
 
                 fetch("https://qrcodelogin-main-1.onrender.com/scan-qr", {
                     method: "POST",
@@ -134,6 +149,46 @@
                 console.error("QR Scanner Error:", errorMessage);
             });
         });
+
+        // Function to start the QR code scanning timer
+        function startQrTimer() {
+            let timeLeft = QR_TIME_LIMIT;
+            updateTimerDisplay(timeLeft);
+            
+            qrTimer = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay(timeLeft);
+                
+                if (timeLeft <= 0) {
+                    clearInterval(qrTimer);
+                    handleQrTimeExpired();
+                }
+            }, 1000);
+        }
+        
+        // Update the timer display
+        function updateTimerDisplay(seconds) {
+            const timerElement = document.getElementById("timer");
+            timerElement.innerText = `Time remaining to scan QR code: ${seconds} seconds`;
+            
+            if (seconds <= 10) {
+                timerElement.classList.add("expired");
+            } else {
+                timerElement.classList.remove("expired");
+            }
+        }
+        
+        // Handle QR code scanning time expiration
+        function handleQrTimeExpired() {
+            if (scanner) {
+                scanner.clear();
+                scanner = null;
+            }
+            
+            document.getElementById("timer").innerText = "QR code scanning time expired!";
+            document.getElementById("scanQR").disabled = true;
+            document.getElementById("scanMessage").innerText = "Time limit exceeded. Please start the login process again.";
+        }
     </script>
 </body>
 </html>
