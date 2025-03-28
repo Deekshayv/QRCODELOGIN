@@ -64,7 +64,7 @@
                 return;
             }
 
-            fetch("https://qrcodelogin-9741.onrender.com/send-otp", {
+            fetch("https://qrcodelogin-main-1.onrender.com/send-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ phone })
@@ -139,7 +139,7 @@
                 return;
             }
 
-            fetch("https://qrcodelogin-9741.onrender.com/verify-otp", {
+            fetch("https://qrcodelogin-main-1.onrender.com/verify-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ phone, otp })
@@ -200,7 +200,7 @@
 
             let phone = document.getElementById("phone").value;
             
-            fetch("https://qrcodelogin-9741.onrender.com/scan-qr", {
+            fetch("https://qrcodelogin-main-1.onrender.com/scan-qr", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
@@ -232,7 +232,7 @@
 
         // Function to load user's scan history
         function loadUserScans(phone) {
-            fetch("https://qrcodelogin-9741.onrender.com/get-user-scans", {
+            fetch("https://qrcodelogin-main-1.onrender.com/get-user-scans", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ phone })
