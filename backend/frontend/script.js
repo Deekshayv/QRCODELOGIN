@@ -97,13 +97,13 @@ function loadUserScans(phone) {
     .then(data => {
         if (data.success) {
             const scansList = document.createElement("div");
-            scansList.innerHTML = <h3>Your Scanned QR Codes (${data.count}):</h3>;
+            scansList.innerHTML = `<h3>Your Scanned QR Codes (${data.count}):</h3>`;
             
             if (data.scans.length > 0) {
                 const list = document.createElement("ul");
                 data.scans.forEach(scan => {
                     const item = document.createElement("li");
-                    item.textContent = ${scan.serial_number} - ${new Date(scan.scanned_at).toLocaleString()};
+                    item.textContent = `${scan.serial_number} - ${new Date(scan.scanned_at).toLocaleString()}`;
                     list.appendChild(item);
                 });
                 scansList.appendChild(list);
