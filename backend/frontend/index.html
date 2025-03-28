@@ -22,7 +22,7 @@
 
         <!-- Phone Input and Send OTP -->
         <label for="phone" id="phoneLabel">Enter Phone Number:</label>
-        <input type="text" id="phone" placeholder="Enter phone number">
+        <input type="text" id="phone" placeholder="Enter phone number" maxlength="10" pattern="\d{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)">
         <br>
         <button id="sendOTP">Send OTP</button>
 
@@ -52,6 +52,12 @@
         // Send OTP Functionality
         document.getElementById("sendOTP").addEventListener("click", function() {
             let phone = document.getElementById("phone").value;
+            
+            // Validate phone number is exactly 10 digits
+            if (phone.length !== 10 || !/^\d+$/.test(phone)) {
+                alert("Please enter a valid 10-digit phone number");
+                return;
+            }
 
             fetch("https://qrcodelogin-main-1.onrender.com/send-otp", {
                 method: "POST",
