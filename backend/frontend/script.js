@@ -1,119 +1,124 @@
-let scanner; // Scanner instance
+let scanner;
 
-document.getElementById("scanQR").addEventListener("click", function() {
-    // Get phone number from form
-    const phone = document.getElementById("phone").value;
+document.getElementById("sendOTP").addEventListener("click", sendOTP);
+document.getElementById("verifyOTP").addEventListener("click", verifyOTP);
+document.getElementById("scanQR").addEventListener("click", startScanner);
+
+function sendOTP() {
+    let phone = document.getElementById("phone").value;
     
-    if (!phone) {
-        alert("Please enter your phone number first");
+    if (!/^\d{10}$/.test(phone)) {
+        alert("Please enter a valid 10-digit phone number.");
         return;
     }
 
-    // Initialize scanner if not already done
+    fetch("https://qrcodelogin-main-1.onrender.com/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("otpSection").style.display = "block";
+        document.getElementById("otpDisplay").innerText = "Your OTP: " + data.otp;
+    })
+    .catch(err => console.error("Error sending OTP:", err));
+}
+
+function verifyOTP() {
+    let phone = document.getElementById("phone").value;
+    let otp = document.getElementById("otp").value;
+
+    fetch("https://qrcodelogin-main-1.onrender.com/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, otp })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert("OTP Verified Successfully!");
+            document.getElementById("qrSection").style.display = "block";
+            document.getElementById("otpSection").style.display = "none";
+            
+            // Load user's previous scans
+            loadUserScans(phone);
+        } else {
+            alert("Invalid OTP! Please try again.");
+        }
+    })
+    .catch(err => console.error("Error verifying OTP:", err));
+}
+
+function startScanner() {
     if (!scanner) {
-        scanner = new Html5QrcodeScanner("qr-video", { 
-            fps: 10, 
-            qrbox: 250 
-        });
+        scanner = new Html5QrcodeScanner("qr-video", { fps: 10, qrbox: 250 });
     }
 
     scanner.render((decodedText) => {
-        // Clean up scanner
         scanner.clear();
         scanner = null;
-        console.log("Scanned QR Code:", decodedText);
 
-        // First associate QR code with phone number
-        fetch("https://qrcodelogin-main-5j9v.onrender.com/scan-qr", {
+        let phone = document.getElementById("phone").value;
+        
+        fetch("https://qrcodelogin-main-1.onrender.com/scan-qr", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
-                serialNumber: decodedText,
-                phone: phone
+                serialNumber: decodedText, 
+                phone: phone 
             })
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(scanData => {
-            if (!scanData.success) {
-                throw new Error(scanData.message || "Failed to associate QR code");
-            }
-            
-            // After successful association, fetch user details
-            return fetch("https://qrcodelogin-main-5j9v.onrender.com/fetch-user-details", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ serialNumber: decodedText })
-            });
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(userData => {
-            if (userData.success) {
-                // Update UI
-                document.getElementById("scanMessage").innerText = "User details fetched successfully!";
-                document.getElementById("scanQR").style.display = "none";
-                document.getElementById("qr-video").style.display = "none";
-                
-                // Show download button
-                document.getElementById("downloadPDF").style.display = "block";
-                document.getElementById("downloadPDF").setAttribute("data-user-id", userData.userId);
+        .then(res => res.json())
+        .then(data => {
+            if (data.duplicate) {
+                alert("You've already scanned this QR code!");
+            } else if (data.success) {
+                alert("QR Code scanned successfully!");
+                loadUserScans(phone);
             } else {
-                throw new Error(userData.message || "Failed to fetch user details");
+                alert(data.message || "Error scanning QR code");
             }
         })
-        .catch(error => {
-            console.error("Error:", error);
-            document.getElementById("scanMessage").innerText = error.message;
-            document.getElementById("scanMessage").style.color = "red";
-            
-            // Re-enable scan button if there was an error
-            document.getElementById("scanQR").style.display = "block";
+        .catch(err => {
+            console.error("Error scanning QR Code:", err);
+            alert("Failed to scan QR Code. Please try again.");
         });
-
-    }, (errorMessage) => {
-        // Handle scan error
-        console.error("QR Scanner Error:", errorMessage);
-        document.getElementById("scanMessage").innerText = "QR scanning failed: " + errorMessage;
-        document.getElementById("scanMessage").style.color = "red";
     });
-});
+}
 
-// Download PDF functionality (unchanged)
-document.getElementById("downloadPDF").addEventListener("click", function() {
-    const userId = this.getAttribute("data-user-id");
-    if (!userId) {
-        alert("No user data available to download");
-        return;
-    }
-
-    fetch(`https://qrcodelogin-main-5j9v.onrender.com/download-pdf?userId=${userId}`, {
-        method: "GET"
+function loadUserScans(phone) {
+    fetch("https://qrcodelogin-main-1.onrender.com/get-user-scans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone })
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const scansList = document.createElement("div");
+            scansList.innerHTML = <h3>Your Scanned QR Codes (${data.count}):</h3>;
+            
+            if (data.scans.length > 0) {
+                const list = document.createElement("ul");
+                data.scans.forEach(scan => {
+                    const item = document.createElement("li");
+                    item.textContent = ${scan.serial_number} - ${new Date(scan.scanned_at).toLocaleString()};
+                    list.appendChild(item);
+                });
+                scansList.appendChild(list);
+            } else {
+                scansList.innerHTML += "<p>No QR codes scanned yet.</p>";
+            }
+            
+            const existingList = document.getElementById("scansList");
+            if (existingList) {
+                existingList.replaceWith(scansList);
+            } else {
+                scansList.id = "scansList";
+                document.getElementById("qrSection").appendChild(scansList);
+            }
         }
-        return response.blob();
     })
-    .then(blob => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "UserDetails.pdf";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    })
-    .catch(error => {
-        console.error("Error downloading PDF:", error);
-        alert("Failed to download PDF: " + error.message);
-    });
-});
+    .catch(err => console.error("Error loading user scans:", err));
+}
