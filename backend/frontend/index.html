@@ -4,83 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR Code Login</title>
-    <style>
-        input, button {
-            margin-bottom: 10px;
-            padding: 8px;
-            font-size: 16px;
-        }
-        button {
-            cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        .timer {
-            color: #d9534f;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-        .expired {
-            color: #d9534f;
-        }
-        .logo {
-            max-width: 200px;
-            margin-bottom: 20px;
-        }
-        .container {
-            max-width: 400px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
-        }
-        #qr-video {
-            margin-top: 20px;
-            border: 2px solid #ddd;
-            border-radius: 4px;
-        }
-        #newOTP {
-            background-color: #337ab7;
-            margin-top: 10px;
-        }
-    </style>
     <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body>
-    <div class="container">
-        <img src="NimbleLogo.png" class="logo" alt="Company Logo">
+    <div>
+        <img src="NimbleLogo.png" alt="Company Logo">
         <h2>QR Code Login</h2>
 
-        <!-- Phone Input and Send OTP -->
+        <!-- Phone Input -->
         <div id="phoneSection">
-            <label for="phone" id="phoneLabel">Enter Phone Number:</label>
+            <label>Enter Phone Number:</label>
             <input type="text" id="phone" placeholder="Enter phone number">
-            <br>
             <button id="sendOTP">Send OTP</button>
         </div>
 
-        <!-- OTP Section (Initially Hidden) -->
-        <div id="otpSection" style="display: none;">
+        <!-- OTP Section -->
+        <div id="otpSection" style="display:none">
             <p id="otpDisplay"></p>
-            <div id="otpTimer" class="timer"></div>
-            <label for="otp" id="otpLabel">Enter OTP:</label>
+            <div id="otpTimer"></div>
+            <label>Enter OTP:</label>
             <input type="text" id="otp" placeholder="Enter OTP">
-            <br>
             <button id="verifyOTP">Verify OTP</button>
-            <button id="newOTP" style="display: none;">Request New OTP</button>
+            <button id="newOTP" style="display:none">Request New OTP</button>
         </div>
 
-        <!-- QR Scanner Section (Initially Hidden) -->
-        <div id="qrSection" style="display: none;">
-            <div id="qrTimer" class="timer"></div>
+        <!-- QR Section -->
+        <div id="qrSection" style="display:none">
+            <div id="qrTimer"></div>
             <button id="scanQR">Scan QR Code</button>
-            <p id="scanMessage" style="color: #5cb85c; font-weight: bold;"></p>
-            <div id="qr-video" style="width: 100%;"></div>
+            <p id="scanMessage"></p>
+            <div id="qr-video"></div>
         </div>
     </div>
 
@@ -88,39 +41,22 @@
         let scanner;
         let otpTimer;
         let qrTimer;
-        const OTP_TIME_LIMIT = 30; // 30 seconds for OTP
-        const QR_TIME_LIMIT = 60; // 60 seconds for QR
+        const OTP_TIME_LIMIT = 30;
+        const QR_TIME_LIMIT = 60;
 
-        // Send OTP Functionality
+        // Send OTP
         document.getElementById("sendOTP").addEventListener("click", function() {
-            let phone = document.getElementById("phone").value.trim();
-            
-            if (!phone) {
-                alert("Please enter a phone number");
-                return;
-            }
+            const phone = document.getElementById("phone").value.trim();
+            if (!phone) return alert("Please enter phone number");
 
-            fetch("https://qrcodelogin-main-1.onrender.com/send-otp", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone })
-            })
-            .then(res => res.json())
-            .then(data => {
-                // Show OTP section
-                document.getElementById("otpSection").style.display = "block";
-                document.getElementById("otpDisplay").innerText = "OTP sent to " + phone;
-                
-                // Hide phone section
-                document.getElementById("phoneSection").style.display = "none";
-                
-                // Start OTP timer
-                startOtpTimer();
-            })
-            .catch(error => {
-                console.error("Error sending OTP:", error);
-                alert("Failed to send OTP. Try again.");
-            });
+            // In a real app, you would call your API here
+            console.log("Sending OTP to:", phone);
+            
+            document.getElementById("otpSection").style.display = "block";
+            document.getElementById("otpDisplay").textContent = "OTP sent to " + phone;
+            document.getElementById("phoneSection").style.display = "none";
+            
+            startOtpTimer();
         });
 
         // Request New OTP
@@ -128,151 +64,81 @@
             document.getElementById("phoneSection").style.display = "block";
             document.getElementById("otpSection").style.display = "none";
             document.getElementById("otp").value = "";
-            document.getElementById("otpTimer").innerText = "";
-            document.getElementById("newOTP").style.display = "none";
             clearInterval(otpTimer);
         });
 
-        // Verify OTP Functionality
+        // Verify OTP
         document.getElementById("verifyOTP").addEventListener("click", function() {
-            let phone = document.getElementById("phone").value;
-            let otp = document.getElementById("otp").value.trim();
+            const otp = document.getElementById("otp").value.trim();
+            if (!otp) return alert("Please enter OTP");
 
-            if (!otp) {
-                alert("Please enter the OTP");
-                return;
-            }
-
-            fetch("https://qrcodelogin-main-1.onrender.com/verify-otp", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone, otp })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    // Show QR section
-                    document.getElementById("qrSection").style.display = "block";
-                    
-                    // Hide OTP section
-                    document.getElementById("otpSection").style.display = "none";
-                    clearInterval(otpTimer);
-                    
-                    // Start QR timer
-                    startQrTimer();
-                } else {
-                    alert("Invalid OTP!");
-                }
-            })
-            .catch(error => {
-                console.error("Error verifying OTP:", error);
-                alert("OTP verification failed.");
-            });
+            // In a real app, you would verify with your API
+            console.log("Verifying OTP:", otp);
+            
+            document.getElementById("qrSection").style.display = "block";
+            document.getElementById("otpSection").style.display = "none";
+            clearInterval(otpTimer);
+            startQrTimer();
         });
 
-        // Scan QR Code Functionality
+        // Scan QR
         document.getElementById("scanQR").addEventListener("click", function() {
             if (!scanner) {
                 scanner = new Html5QrcodeScanner("qr-video", { fps: 10, qrbox: 250 });
             }
 
             scanner.render((decodedText) => {
-                console.log("Scanned QR Code:", decodedText);
+                console.log("Scanned:", decodedText);
                 scanner.clear();
                 scanner = null;
                 clearInterval(qrTimer);
-
-                fetch("https://qrcodelogin-main-1.onrender.com/scan-qr", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ serialNumber: decodedText })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById("scanMessage").innerText = data.message;
-                    document.getElementById("scanQR").style.display = "none";
-                    document.getElementById("qr-video").style.display = "none";
-                    document.getElementById("qrTimer").innerText = "Login successful!";
-                })
-                .catch(error => {
-                    console.error("Error scanning QR Code:", error);
-                    alert("Failed to scan QR Code. Please try again.");
-                });
-            }, (errorMessage) => {
-                console.error("QR Scanner Error:", errorMessage);
+                document.getElementById("scanMessage").textContent = "QR Code scanned successfully!";
+            }, (error) => {
+                console.error("QR Error:", error);
             });
         });
 
-        // OTP Timer Functions
+        // OTP Timer
         function startOtpTimer() {
             let timeLeft = OTP_TIME_LIMIT;
-            updateOtpTimerDisplay(timeLeft);
+            updateOtpTimer(timeLeft);
             
             otpTimer = setInterval(() => {
                 timeLeft--;
-                updateOtpTimerDisplay(timeLeft);
-                
+                updateOtpTimer(timeLeft);
                 if (timeLeft <= 0) {
                     clearInterval(otpTimer);
-                    handleOtpTimeExpired();
+                    document.getElementById("otp").disabled = true;
+                    document.getElementById("verifyOTP").disabled = true;
+                    document.getElementById("newOTP").style.display = "inline";
+                    document.getElementById("otpTimer").textContent = "OTP expired!";
                 }
             }, 1000);
         }
-        
-        function updateOtpTimerDisplay(seconds) {
-            const timerElement = document.getElementById("otpTimer");
-            timerElement.innerText = `Time remaining: ${seconds} seconds`;
-            
-            if (seconds <= 10) {
-                timerElement.classList.add("expired");
-            } else {
-                timerElement.classList.remove("expired");
-            }
-        }
-        
-        function handleOtpTimeExpired() {
-            document.getElementById("otpTimer").innerText = "OTP expired!";
-            document.getElementById("otp").disabled = true;
-            document.getElementById("verifyOTP").disabled = true;
-            document.getElementById("newOTP").style.display = "inline-block";
+
+        function updateOtpTimer(seconds) {
+            document.getElementById("otpTimer").textContent = `Time left: ${seconds}s`;
         }
 
-        // QR Timer Functions
+        // QR Timer
         function startQrTimer() {
             let timeLeft = QR_TIME_LIMIT;
-            updateQrTimerDisplay(timeLeft);
+            updateQrTimer(timeLeft);
             
             qrTimer = setInterval(() => {
                 timeLeft--;
-                updateQrTimerDisplay(timeLeft);
-                
+                updateQrTimer(timeLeft);
                 if (timeLeft <= 0) {
                     clearInterval(qrTimer);
-                    handleQrTimeExpired();
+                    if (scanner) scanner.clear();
+                    document.getElementById("scanQR").disabled = true;
+                    document.getElementById("qrTimer").textContent = "QR time expired!";
                 }
             }, 1000);
         }
-        
-        function updateQrTimerDisplay(seconds) {
-            const timerElement = document.getElementById("qrTimer");
-            timerElement.innerText = `Time remaining to scan: ${seconds} seconds`;
-            
-            if (seconds <= 10) {
-                timerElement.classList.add("expired");
-            } else {
-                timerElement.classList.remove("expired");
-            }
-        }
-        
-        function handleQrTimeExpired() {
-            if (scanner) {
-                scanner.clear();
-                scanner = null;
-            }
-            
-            document.getElementById("qrTimer").innerText = "QR scanning time expired!";
-            document.getElementById("scanQR").disabled = true;
-            document.getElementById("scanMessage").innerText = "Time limit exceeded. Please start the login process again.";
+
+        function updateQrTimer(seconds) {
+            document.getElementById("qrTimer").textContent = `Scan time left: ${seconds}s`;
         }
     </script>
 </body>
