@@ -62,8 +62,82 @@ app.post("/verify-otp", (req, res) => {
     }
 });
 
-// Scan QR Code and store in database
+// Scan QR Code and associate with phone number (Updated version)
 app.post("/scan-qr", async (req, res) => {
+    const { serialNumber, phone } = req.body;
+    console.log("Received serial Number:", serialNumber);
+    console.log("Received phone:", phone);
+
+    if (!serialNumber || !phone) {
+        return res.status(400).json({ 
+            success: false,
+            message: "Both serial number and phone are required!" 
+        });
+    }
+
+    try {
+        // Verify phone has a valid OTP session (optional security check)
+        if (!otpStore[phone]) {
+            return res.json({ 
+                success: false,
+                message: "OTP session expired or invalid" 
+            });
+        }
+
+        const result = await pool.query(
+            "UPDATE qr_codes SET scanned = TRUE, scanned_at = NOW(), phone_number = $1 " +
+            "WHERE serial_number = $2 AND scanned = FALSE RETURNING *",
+            [phone, serialNumber]
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ 
+                success: false,
+                message: "QR Code not found or already scanned!" 
+            });
+        }
+
+        return res.json({ 
+            success: true,
+            message: "QR Code scanned and associated successfully!",
+            qrCode: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error("Database error:", error);
+        return res.status(500).json({ 
+            success: false,
+            message: "Database error",
+            error 
+        });
+    }
+});
+
+// Get all QR codes for a phone number (New endpoint)
+app.get("/qr-codes/:phone", async (req, res) => {
+    const { phone } = req.params;
+    
+    try {
+        const result = await pool.query(
+            "SELECT * FROM qr_codes WHERE phone_number = $1",
+            [phone]
+        );
+        
+        res.json({
+            success: true,
+            qrCodes: result.rows
+        });
+    } catch (error) {
+        console.error("Database error:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Database error" 
+        });
+    }
+});
+
+// Original scan endpoint (kept for backward compatibility)
+app.post("/original-scan-qr", async (req, res) => {
     const { serialNumber } = req.body;
     console.log("Received serial Number:", serialNumber);
 
