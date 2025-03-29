@@ -35,66 +35,70 @@ function initEventListeners() {
   // Scan QR button
   document.getElementById('scanQR').addEventListener('click', startScanner);
 
-  // Back button from OTP section
-  document.getElementById('backFromOTP').addEventListener('click', function() {
-    document.getElementById('otpSection').style.display = 'none';
-    document.getElementById('phone').style.display = 'block';
-    document.getElementById('sendOTP').style.display = 'block';
-    document.getElementById('phoneLabel').style.display = 'block';
-    clearInterval(otpTimer);
-  });
-
-  // Back button from QR section
-  document.getElementById('backFromQR').addEventListener('click', function() {
-    document.getElementById('qrSection').style.display = 'none';
-    document.getElementById('otpSection').style.display = 'block';
-    if (scanner) {
-      scanner.clear();
-      scanner = null;
-    }
-  });
+  // Back buttons
+  document.getElementById('backFromOTP').addEventListener('click', resetToPhoneInput);
+  document.getElementById('backFromQR').addEventListener('click', resetToOTPInput);
 }
 
 async function sendOTP() {
-  const phone = document.getElementById('phone').value;
+  const phone = document.getElementById('phone').value.trim();
   
   if (phone.length !== 10) {
     alert('Please enter exactly 10-digit phone number.');
     return;
   }
 
+  const sendOTPButton = document.getElementById('sendOTP');
+  sendOTPButton.disabled = true;
+  sendOTPButton.textContent = 'Sending...';
+
   try {
     const response = await fetch('https://qrcodelogin-main-5j9v.onrender.com/send-otp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({ phone })
     });
 
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || 'Failed to send OTP');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to send OTP');
     }
 
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.message || 'OTP sending failed');
+    }
+
+    // Success case
     attemptCount++;
-    document.getElementById('otpSection').style.display = 'block';
-    document.getElementById('otpDisplay').textContent = `Your OTP: ${data.otp}`;
-    document.getElementById('resendOTP').style.display = 'none';
-
-    document.getElementById('phone').style.display = 'none';
-    document.getElementById('sendOTP').style.display = 'none';
-    document.getElementById('phoneLabel').style.display = 'none';
-
-    document.getElementById('otp').value = '';
-    document.getElementById('otp').disabled = false;
-    document.getElementById('verifyOTP').disabled = false;
-
+    showOTPSection(data.otp);
     startTimer();
 
   } catch (error) {
     console.error('Error sending OTP:', error);
     alert(error.message || 'Failed to send OTP. Please try again.');
+  } finally {
+    sendOTPButton.disabled = false;
+    sendOTPButton.textContent = 'Send OTP';
   }
+}
+
+function showOTPSection(otp) {
+  document.getElementById('otpSection').style.display = 'block';
+  document.getElementById('otpDisplay').textContent = `Your OTP: ${otp}`;
+  document.getElementById('resendOTP').style.display = 'none';
+
+  document.getElementById('phone').style.display = 'none';
+  document.getElementById('sendOTP').style.display = 'none';
+  document.getElementById('phoneLabel').style.display = 'none';
+
+  document.getElementById('otp').value = '';
+  document.getElementById('otp').disabled = false;
+  document.getElementById('verifyOTP').disabled = false;
 }
 
 function startTimer() {
@@ -108,15 +112,7 @@ function startTimer() {
 
     if (timeLeft <= 0) {
       clearInterval(otpTimer);
-      document.getElementById('otp').disabled = true;
-      document.getElementById('verifyOTP').disabled = true;
-      document.getElementById('otpDisplay').textContent = 'OTP expired. Please request a new one.';
-      document.getElementById('resendOTP').style.display = 'inline';
-      
-      if (attemptCount >= MAX_ATTEMPTS) {
-        document.getElementById('resendOTP').disabled = true;
-        document.getElementById('otpDisplay').textContent = 'Maximum attempts reached. Please try again later.';
-      }
+      handleOTPExpiration();
     }
   }, 1000);
 }
@@ -125,9 +121,21 @@ function updateTimerDisplay() {
   document.getElementById('otpTimer').textContent = `Time remaining: ${timeLeft} seconds`;
 }
 
+function handleOTPExpiration() {
+  document.getElementById('otp').disabled = true;
+  document.getElementById('verifyOTP').disabled = true;
+  document.getElementById('otpDisplay').textContent = 'OTP expired. Please request a new one.';
+  document.getElementById('resendOTP').style.display = 'inline';
+  
+  if (attemptCount >= MAX_ATTEMPTS) {
+    document.getElementById('resendOTP').disabled = true;
+    document.getElementById('otpDisplay').textContent = 'Maximum attempts reached. Please try again later.';
+  }
+}
+
 async function verifyOTP() {
   const phone = document.getElementById('phone').value;
-  const otp = document.getElementById('otp').value;
+  const otp = document.getElementById('otp').value.trim();
 
   if (!otp) {
     alert('Please enter the OTP');
@@ -141,17 +149,20 @@ async function verifyOTP() {
       body: JSON.stringify({ phone, otp })
     });
 
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'OTP verification failed');
+    }
+
     const data = await response.json();
 
-    if (!response.ok || !data.success) {
+    if (!data.success) {
       throw new Error(data.message || 'Invalid OTP');
     }
 
+    // Success case
     clearInterval(otpTimer);
-    document.getElementById('qrSection').style.display = 'block';
-    document.getElementById('otpSection').style.display = 'none';
-    attemptCount = 0;
-    loadUserScans(phone);
+    showQRScanner();
 
   } catch (error) {
     console.error('Error verifying OTP:', error);
@@ -167,6 +178,30 @@ async function verifyOTP() {
   }
 }
 
+function showQRScanner() {
+  document.getElementById('qrSection').style.display = 'block';
+  document.getElementById('otpSection').style.display = 'none';
+  attemptCount = 0;
+  loadUserScans(document.getElementById('phone').value);
+}
+
+function resetToPhoneInput() {
+  document.getElementById('otpSection').style.display = 'none';
+  document.getElementById('phone').style.display = 'block';
+  document.getElementById('sendOTP').style.display = 'block';
+  document.getElementById('phoneLabel').style.display = 'block';
+  clearInterval(otpTimer);
+}
+
+function resetToOTPInput() {
+  document.getElementById('qrSection').style.display = 'none';
+  document.getElementById('otpSection').style.display = 'block';
+  if (scanner) {
+    scanner.clear();
+    scanner = null;
+  }
+}
+
 function startScanner() {
   const phone = document.getElementById('phone').value;
   if (!phone) {
@@ -174,7 +209,8 @@ function startScanner() {
     return;
   }
 
-  document.getElementById('scanQR').disabled = true;
+  const scanQRButton = document.getElementById('scanQR');
+  scanQRButton.disabled = true;
   document.getElementById('scanStatus').innerHTML = 'Preparing scanner...';
   document.getElementById('scanStatus').style.backgroundColor = '#e6f7ff';
   document.getElementById('scanStatus').style.color = '#0066cc';
@@ -198,7 +234,7 @@ function startScanner() {
       document.getElementById('scanStatus').innerHTML = `Scanner error: ${errorMessage}`;
       document.getElementById('scanStatus').style.backgroundColor = '#ffebee';
       document.getElementById('scanStatus').style.color = '#c62828';
-      document.getElementById('scanQR').disabled = false;
+      scanQRButton.disabled = false;
     }
   );
 }
@@ -218,9 +254,14 @@ async function handleScannedQR(decodedText, phone) {
       })
     });
 
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error scanning QR code');
+    }
+
     const data = await response.json();
 
-    if (!response.ok || !data.success) {
+    if (!data.success) {
       let errorMessage = data.message || 'Error scanning QR code';
       if (data.alreadyUsed) {
         errorMessage += '\nThis QR code is already assigned to another user.';
@@ -251,9 +292,14 @@ async function loadUserScans(phone) {
       body: JSON.stringify({ phone })
     });
 
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to load scan history');
+    }
+
     const data = await response.json();
 
-    if (!response.ok || !data.success) {
+    if (!data.success) {
       throw new Error(data.message || 'Failed to load scan history');
     }
 
