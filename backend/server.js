@@ -5,31 +5,94 @@ const bodyParser = require('body-parser');
 const { Pool } = require('pg');
 
 const app = express();
-app.use(cors({ origin: '*' }));
-app.use(bodyParser.json());
 
-// Database connection
-const pool = new Pool({
+// Enhanced CORS configuration
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Improved body parsing
+app.use(bodyParser.json({
+  limit: '10kb',
+  verify: (req, res, buf) => {
+    try {
+      JSON.parse(buf.toString());
+    } catch (e) {
+      throw new Error('Invalid JSON');
+    }
+  }
+}));
+
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Database connection with retry logic
+const poolConfig = {
   connectionString: "postgresql://neondb_owner:npg_ySPh4vCn7mLU@ep-bold-field-a5wfrijr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
-  ssl: { rejectUnauthorized: false }
-});
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
+  max: 20
+};
+
+const pool = new Pool(poolConfig);
 
 // Test DB connection
-pool.connect()
-  .then(() => console.log('Connected to PostgreSQL Database'))
-  .catch(err => {
-    console.error('Database connection failed:', err);
-    process.exit(1);
-  });
+async function testDbConnection() {
+  let retries = 5;
+  while (retries) {
+    try {
+      const client = await pool.connect();
+      await client.query('SELECT NOW()');
+      client.release();
+      console.log('Database connected successfully');
+      return;
+    } catch (err) {
+      retries--;
+      console.error(`Database connection failed (${retries} retries left):`, err);
+      if (retries === 0) {
+        process.exit(1);
+      }
+      await new Promise(res => setTimeout(res, 5000));
+    }
+  }
+}
+testDbConnection();
 
 let otpStore = {};
+
+// Middleware to validate JSON
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ success: false, message: 'Invalid JSON payload' });
+  }
+  next();
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 
 // Send OTP endpoint
 app.post('/send-otp', async (req, res) => {
   try {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Request body is required'
+      });
+    }
+
     const { phone } = req.body;
     
-    if (!phone || phone.length !== 10) {
+    if (!phone || phone.length !== 10 || !/^\d+$/.test(phone)) {
       return res.status(400).json({ 
         success: false, 
         message: 'Valid 10-digit phone number is required' 
@@ -43,14 +106,16 @@ app.post('/send-otp', async (req, res) => {
     return res.status(200).json({
       success: true,
       otp: otp,
-      message: 'OTP sent successfully'
+      message: 'OTP sent successfully',
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
     console.error('Error in send-otp:', error);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error',
+      error: error.message
     });
   }
 });
@@ -58,6 +123,13 @@ app.post('/send-otp', async (req, res) => {
 // Verify OTP endpoint
 app.post('/verify-otp', async (req, res) => {
   try {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Request body is required'
+      });
+    }
+
     const { phone, otp } = req.body;
     
     if (!phone || !otp) {
@@ -91,6 +163,13 @@ app.post('/verify-otp', async (req, res) => {
 // Scan QR Code endpoint
 app.post('/scan-qr', async (req, res) => {
   try {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Request body is required'
+      });
+    }
+
     const { serialNumber, phone } = req.body;
     
     if (!serialNumber || !phone) {
@@ -158,6 +237,13 @@ app.post('/scan-qr', async (req, res) => {
 // Get user scans endpoint
 app.post('/get-user-scans', async (req, res) => {
   try {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Request body is required'
+      });
+    }
+
     const { phone } = req.body;
     
     if (!phone) {
@@ -193,6 +279,13 @@ app.post('/get-user-scans', async (req, res) => {
 // Admin endpoint to add QR codes
 app.post('/add-qr-code', async (req, res) => {
   try {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Request body is required'
+      });
+    }
+
     const { serialNumber } = req.body;
     
     if (!serialNumber) {
@@ -227,7 +320,27 @@ app.post('/add-qr-code', async (req, res) => {
   }
 });
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error'
+  });
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  process.exit(1);
 });
