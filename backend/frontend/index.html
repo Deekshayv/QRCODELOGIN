@@ -28,6 +28,7 @@
             <br>
             <button id="verifyOTP">Verify OTP</button>
             <button id="resendOTP" style="display: none;">Resend OTP</button>
+            <button id="backFromOTP" class="back-button">Back</button>
         </div>
 
         <!-- QR Scanner Section (Initially Hidden) -->
@@ -36,6 +37,7 @@
             <p id="scanMessage" style="color: rgb(0, 128, 2); font-weight: bold;"></p>
             <div id="qr-video" style="width: 100%;"></div>
             <div id="scansList"></div>
+            <button id="backFromQR" class="back-button">Cancel</button>
         </div>
     </div>
 
@@ -100,6 +102,15 @@
                 return;
             }
             sendOTP();
+        });
+
+        // Back button from OTP section
+        document.getElementById("backFromOTP").addEventListener("click", function() {
+            document.getElementById("otpSection").style.display = "none";
+            document.getElementById("phone").style.display = "block";
+            document.getElementById("sendOTP").style.display = "block";
+            document.getElementById("phoneLabel").style.display = "block";
+            clearInterval(otpTimer);
         });
 
         function startTimer() {
@@ -170,6 +181,16 @@
                 console.error("Error verifying OTP:", error);
                 alert("OTP verification failed.");
             });
+        });
+
+        // Back button from QR section
+        document.getElementById("backFromQR").addEventListener("click", function() {
+            document.getElementById("qrSection").style.display = "none";
+            document.getElementById("otpSection").style.display = "block";
+            if (scanner) {
+                scanner.clear();
+                scanner = null;
+            }
         });
 
         // Scan QR Code Functionality with user tracking
