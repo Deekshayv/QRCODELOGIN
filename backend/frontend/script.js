@@ -17,21 +17,27 @@ function initEventListeners() {
     }
   });
 
-  // Button event listeners
+  // Send OTP button
   document.getElementById('sendOTP').addEventListener('click', sendOTP);
-  document.getElementById('resendOTP').addEventListener('click', handleResendOTP);
+
+  // Resend OTP button
+  document.getElementById('resendOTP').addEventListener('click', function() {
+    if (attemptCount >= MAX_ATTEMPTS) {
+      alert('Maximum attempts reached. Please try again later.');
+      return;
+    }
+    sendOTP();
+  });
+
+  // Verify OTP button
   document.getElementById('verifyOTP').addEventListener('click', verifyOTP);
+
+  // Scan QR button
   document.getElementById('scanQR').addEventListener('click', startScanner);
+
+  // Back buttons
   document.getElementById('backFromOTP').addEventListener('click', resetToPhoneInput);
   document.getElementById('backFromQR').addEventListener('click', resetToOTPInput);
-}
-
-function handleResendOTP() {
-  if (attemptCount >= MAX_ATTEMPTS) {
-    alert('Maximum attempts reached. Please try again later.');
-    return;
-  }
-  sendOTP();
 }
 
 async function sendOTP() {
@@ -49,28 +55,79 @@ async function sendOTP() {
   try {
     const response = await fetch('/send-otp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({ phone })
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || 'Failed to send OTP');
+    // First check if we got a response at all
+    if (!response) {
+      throw new Error('No response received from server');
     }
 
-    const data = await response.json();
-    
+    // Get the raw response text first
+    const responseText = await response.text();
+    console.log('Raw response:', responseText);
+
+    // Check if response is completely empty
+    if (!responseText.trim()) {
+      if (response.ok) {
+        // Special case: empty but successful response
+        console.warn('Server returned empty but successful response');
+        throw new Error('Server error: Empty response');
+      } else {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    // Try to parse JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('JSON parse error:', e);
+      throw new Error('Invalid server response format');
+    }
+
+    // Check HTTP status
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
+    }
+
+    // Check application-level success
     if (!data.success) {
       throw new Error(data.message || 'OTP sending failed');
     }
 
+    // Verify required fields
+    if (!data.otp) {
+      throw new Error('Server did not return an OTP');
+    }
+
+    // Success case
     attemptCount++;
     showOTPSection(data.otp);
     startTimer();
 
   } catch (error) {
-    console.error('Error sending OTP:', error);
-    alert(error.message || 'Failed to send OTP. Please try again.');
+    console.error('Error sending OTP:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+
+    // User-friendly error messages
+    let userMessage = 'Failed to send OTP. Please try again.';
+    if (error.message.includes('Invalid server response')) {
+      userMessage = 'Server error. Please contact support.';
+    } else if (error.message.includes('Network')) {
+      userMessage = 'Network problem. Check your connection.';
+    }
+
+    alert(userMessage);
+    
   } finally {
     sendOTPButton.disabled = false;
     sendOTPButton.textContent = 'Send OTP';
@@ -82,12 +139,10 @@ function showOTPSection(otp) {
   document.getElementById('otpDisplay').textContent = `Your OTP: ${otp}`;
   document.getElementById('resendOTP').style.display = 'none';
 
-  // Hide phone input section
   document.getElementById('phone').style.display = 'none';
   document.getElementById('sendOTP').style.display = 'none';
   document.getElementById('phoneLabel').style.display = 'none';
 
-  // Reset OTP input
   document.getElementById('otp').value = '';
   document.getElementById('otp').disabled = false;
   document.getElementById('verifyOTP').disabled = false;
@@ -141,16 +196,28 @@ async function verifyOTP() {
   try {
     const response = await fetch('/verify-otp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({ phone, otp })
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || 'OTP verification failed');
+    if (!response) {
+      throw new Error('No response from server');
     }
 
-    const data = await response.json();
+    const responseText = await response.text();
+    
+    if (!responseText.trim()) {
+      throw new Error('Empty server response');
+    }
+
+    const data = JSON.parse(responseText);
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Verification failed');
+    }
 
     if (!data.success) {
       throw new Error(data.message || 'Invalid OTP');
@@ -160,8 +227,8 @@ async function verifyOTP() {
     showQRScanner();
 
   } catch (error) {
-    console.error('Error verifying OTP:', error);
-    alert(error.message || 'OTP verification failed.');
+    console.error('Verify OTP error:', error);
+    alert(error.message || 'OTP verification failed');
     
     if (attemptCount >= MAX_ATTEMPTS) {
       document.getElementById('otpDisplay').textContent = 'Maximum attempts reached. Please try again later.';
@@ -176,6 +243,7 @@ async function verifyOTP() {
   }
 }
 
+// QR Scanner and other functions remain the same as previous versions
 function showQRScanner() {
   document.getElementById('qrSection').style.display = 'block';
   document.getElementById('otpSection').style.display = 'none';
