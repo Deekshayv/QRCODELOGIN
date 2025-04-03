@@ -3,8 +3,17 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { Pool } = require('pg');
+const path = require('path');
 
 const app = express();
+
+// Serve static files from the current directory
+app.use(express.static(__dirname));
+
+// Root route handler
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Enhanced CORS configuration
 app.use(cors({
