@@ -62,12 +62,23 @@ async function sendOTP() {
       body: JSON.stringify({ phone })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to send OTP');
+    // Check if we got a response
+    if (!response) {
+      throw new Error('No response from server');
+    }
+
+    // Check content-type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      throw new Error(text || 'Server returned non-JSON response');
     }
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
+    }
 
     if (!data.success) {
       throw new Error(data.message || 'OTP sending failed');
@@ -79,8 +90,20 @@ async function sendOTP() {
     startTimer();
 
   } catch (error) {
-    console.error('Error sending OTP:', error);
-    alert(error.message || 'Failed to send OTP. Please try again.');
+    console.error('Error sending OTP:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    let errorMessage = error.message;
+    if (error instanceof SyntaxError) {
+      errorMessage = 'Invalid response from server. Please try again.';
+    } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      errorMessage = 'Network error. Please check your connection.';
+    }
+    
+    alert(errorMessage);
   } finally {
     sendOTPButton.disabled = false;
     sendOTPButton.textContent = 'Send OTP';
@@ -142,19 +165,35 @@ async function verifyOTP() {
     return;
   }
 
+  const verifyOTPButton = document.getElementById('verifyOTP');
+  verifyOTPButton.disabled = true;
+  verifyOTPButton.textContent = 'Verifying...';
+
   try {
     const response = await fetch('https://qrcodelogin-main-5j9v.onrender.com/verify-otp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({ phone, otp })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'OTP verification failed');
+    if (!response) {
+      throw new Error('No response from server');
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      throw new Error(text || 'Server returned non-JSON response');
     }
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
+    }
 
     if (!data.success) {
       throw new Error(data.message || 'Invalid OTP');
@@ -165,8 +204,20 @@ async function verifyOTP() {
     showQRScanner();
 
   } catch (error) {
-    console.error('Error verifying OTP:', error);
-    alert(error.message || 'OTP verification failed.');
+    console.error('Error verifying OTP:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    let errorMessage = error.message;
+    if (error instanceof SyntaxError) {
+      errorMessage = 'Invalid response from server. Please try again.';
+    } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      errorMessage = 'Network error. Please check your connection.';
+    }
+    
+    alert(errorMessage);
     
     if (attemptCount >= MAX_ATTEMPTS) {
       document.getElementById('otpDisplay').textContent = 'Maximum attempts reached. Please try again later.';
@@ -175,6 +226,9 @@ async function verifyOTP() {
       document.getElementById('resendOTP').disabled = true;
       clearInterval(otpTimer);
     }
+  } finally {
+    verifyOTPButton.disabled = false;
+    verifyOTPButton.textContent = 'Verify OTP';
   }
 }
 
@@ -247,19 +301,31 @@ async function handleScannedQR(decodedText, phone) {
   try {
     const response = await fetch('https://qrcodelogin-main-5j9v.onrender.com/scan-qr', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({ 
         serialNumber: decodedText,
         phone: phone
       })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Error scanning QR code');
+    if (!response) {
+      throw new Error('No response from server');
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      throw new Error(text || 'Server returned non-JSON response');
     }
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
+    }
 
     if (!data.success) {
       let errorMessage = data.message || 'Error scanning QR code';
@@ -275,7 +341,12 @@ async function handleScannedQR(decodedText, phone) {
     loadUserScans(phone);
 
   } catch (error) {
-    console.error('Error scanning QR Code:', error);
+    console.error('Error scanning QR Code:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
     document.getElementById('scanStatus').innerHTML = error.message;
     document.getElementById('scanStatus').style.backgroundColor = '#ffebee';
     document.getElementById('scanStatus').style.color = '#c62828';
@@ -288,16 +359,28 @@ async function loadUserScans(phone) {
   try {
     const response = await fetch('https://qrcodelogin-main-5j9v.onrender.com/get-user-scans', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify({ phone })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to load scan history');
+    if (!response) {
+      throw new Error('No response from server');
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      throw new Error(text || 'Server returned non-JSON response');
     }
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
+    }
 
     if (!data.success) {
       throw new Error(data.message || 'Failed to load scan history');
@@ -327,7 +410,12 @@ async function loadUserScans(phone) {
     }
 
   } catch (error) {
-    console.error('Error loading user scans:', error);
+    console.error('Error loading user scans:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
     document.getElementById('scanStatus').innerHTML = error.message;
     document.getElementById('scanStatus').style.backgroundColor = '#ffebee';
     document.getElementById('scanStatus').style.color = '#c62828';
