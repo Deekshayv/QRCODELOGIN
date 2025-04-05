@@ -4,7 +4,6 @@ let timeLeft = 30;
 let attemptCount = 0;
 const MAX_ATTEMPTS = 3;
 
-// Initialize event listeners
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("phone").addEventListener("input", validatePhoneInput);
     document.getElementById("sendOTP").addEventListener("click", sendOTP);
@@ -184,6 +183,9 @@ async function handleScannedQR(decodedText) {
         
         if (data.duplicate) {
             scanMessage.innerText = "You've already scanned this QR code!";
+            scanMessage.style.color = "red";
+        } else if (data.expired) {
+            scanMessage.innerText = "This QR code has already been used!";
             scanMessage.style.color = "red";
         } else if (data.success) {
             scanMessage.innerText = "QR Code scanned successfully!";
