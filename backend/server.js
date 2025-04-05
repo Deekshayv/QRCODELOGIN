@@ -24,19 +24,9 @@ pool.connect()
 
 let otpStore = {};
 
-// Improved root endpoint
+// Root endpoint
 app.get("/", (req, res) => {
-    res.json({
-        status: "Server is running",
-        endpoints: {
-            sendOTP: "POST /send-otp",
-            verifyOTP: "POST /verify-otp",
-            scanQR: "POST /scan-qr",
-            getUserScans: "POST /get-user-scans",
-            addQRCode: "POST /add-qr-code"
-        },
-        timestamp: new Date().toISOString()
-    });
+    res.json({ status: "Server is running successfully" });
 });
 
 // Generate and Send OTP
@@ -62,7 +52,7 @@ app.post("/verify-otp", (req, res) => {
     }
 });
 
-// Scan QR Code and store with phone number
+// Scan QR Code - Updated to prevent multiple scans
 app.post("/scan-qr", async (req, res) => {
     const { serialNumber, phone } = req.body;
     if (!serialNumber || !phone) {
@@ -80,23 +70,38 @@ app.post("/scan-qr", async (req, res) => {
             return res.json({ message: "QR Code not found!" });
         }
 
-        // Check if this QR code was already scanned by this user
         const existingScan = qrCheck.rows[0];
-        if (existingScan.scanned && existingScan.phone_number === phone) {
-            return res.json({ 
-                message: "You have already scanned this QR code!",
-                duplicate: true
-            });
+        
+        // Check if already scanned by any user
+        if (existingScan.scanned) {
+            if (existingScan.phone_number === phone) {
+                return res.json({ 
+                    message: "You have already scanned this QR code!",
+                    duplicate: true
+                });
+            } else {
+                return res.json({ 
+                    message: "This QR code has already been used!",
+                    expired: true
+                });
+            }
         }
 
-        // Update the QR code record
+        // Update only if not scanned yet
         const result = await pool.query(
             `UPDATE qr_codes 
              SET scanned = TRUE, phone_number = $1, scanned_at = NOW()
-             WHERE serial_number = $2
+             WHERE serial_number = $2 AND scanned = FALSE
              RETURNING *`,
             [phone, serialNumber]
         );
+
+        if (result.rows.length === 0) {
+            return res.json({ 
+                message: "This QR code has already been used!",
+                expired: true
+            });
+        }
 
         return res.json({ 
             message: "QR Code scanned successfully!",
@@ -106,11 +111,6 @@ app.post("/scan-qr", async (req, res) => {
 
     } catch (error) {
         console.error("Database error:", error);
-        
-        if (error.code === '23505') { // Unique violation
-            return res.json({ message: "This QR code was already scanned by someone else!" });
-        }
-        
         return res.status(500).json({ message: "Database error", error });
     }
 });
