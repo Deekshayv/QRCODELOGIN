@@ -1,4 +1,3 @@
-
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -16,10 +15,15 @@ const pool = new Pool({
 });
 
 // Test database connection
+let dbStatus = "Connecting...";
 pool.connect()
-    .then(() => console.log("Connected to PostgreSQL Database"))
+    .then(() => {
+        console.log("Connected to PostgreSQL Database");
+        dbStatus = "Connected to Neon.tech PostgreSQL";
+    })
     .catch((err) => {
         console.error("Database connection failed: ", err);
+        dbStatus = "Database connection failed";
         process.exit(1);
     });
 
@@ -27,17 +31,61 @@ let otpStore = {};
 
 // Improved root endpoint
 app.get("/", (req, res) => {
-    res.json({
-        status: "Server is running",
+    const serverStatus = {
+        status: "Server is running successfully",
+        database: dbStatus,
+        environment: process.env.NODE_ENV || "development",
+        timestamp: new Date().toISOString(),
         endpoints: {
-            sendOTP: "POST /send-otp",
-            verifyOTP: "POST /verify-otp",
-            scanQR: "POST /scan-qr",
-            getUserScans: "POST /get-user-scans",
-            addQRCode: "POST /add-qr-code"
-        },
-        timestamp: new Date().toISOString()
-    });
+            sendOTP: {
+                method: "POST",
+                path: "/send-otp",
+                description: "Send OTP to user phone number"
+            },
+            verifyOTP: {
+                method: "POST",
+                path: "/verify-otp",
+                description: "Verify user's OTP"
+            },
+            scanQR: {
+                method: "POST",
+                path: "/scan-qr",
+                description: "Scan a QR code and associate with user"
+            },
+            getUserScans: {
+                method: "POST",
+                path: "/get-user-scans",
+                description: "Get all scans for a specific user"
+            },
+            addQRCode: {
+                method: "POST",
+                path: "/add-qr-code",
+                description: "Add new QR code to system (admin)"
+            }
+        }
+    };
+
+    res.json(serverStatus);
+});
+
+// Health check endpoint
+app.get("/health", async (req, res) => {
+    try {
+        // Simple query to verify DB connection
+        await pool.query('SELECT 1');
+        res.json({
+            status: 'healthy',
+            database: 'connected',
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        res.status(500).json({
+            status: 'unhealthy',
+            database: 'disconnected',
+            error: err.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // Generate and Send OTP
