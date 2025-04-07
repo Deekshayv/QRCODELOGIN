@@ -8,117 +8,212 @@ const app = express();
 app.use(cors({ origin: "*" }));
 app.use(bodyParser.json());
 
-// PostgreSQL Database Connection - using environment variables
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://neondb_owner:npg_ySPh4vCn7mLU@ep-bold-field-a5wfrijr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
-  ssl: { rejectUnauthorized: false }
+// Enhanced PostgreSQL Database Connection
+const poolConfig = {
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  max: 20
+};
+
+const pool = new Pool(poolConfig);
+
+// Database connection health check
+async function checkDatabaseConnection() {
+  let client;
+  try {
+    client = await pool.connect();
+    console.log("Successfully connected to PostgreSQL Database");
+    return true;
+  } catch (err) {
+    console.error("Database connection failed:", err);
+    return false;
+  } finally {
+    if (client) client.release();
+  }
+}
+
+// Verify database connection on startup
+checkDatabaseConnection().then(isConnected => {
+  if (!isConnected) {
+    console.error("Fatal: Could not establish database connection");
+    process.exit(1);
+  }
 });
 
-// Test database connection
-pool.connect()
-  .then(() => console.log("Connected to PostgreSQL Database"))
-  .catch((err) => {
-    console.error("Database connection failed: ", err);
-    process.exit(1);
-  });
+// Connection error handling
+pool.on('error', (err) => {
+  console.error('Unexpected PostgreSQL error:', err);
+  // Implement reconnection logic here if needed
+});
 
 let otpStore = {};
 
-// Root endpoint
+// API endpoints
 app.get("/", (req, res) => {
-  res.json({ status: "Server is running successfully" });
+  res.json({ 
+    status: "Server is running successfully",
+    database: pool.totalCount > 0 ? "connected" : "disconnected"
+  });
 });
 
-// Generate and Send OTP
 app.post("/send-otp", (req, res) => {
   const { phone } = req.body;
-  if (!phone) return res.status(400).json({ message: "Phone number is required!" });
+  
+  if (!phone || !/^\d{10}$/.test(phone)) {
+    return res.status(400).json({ 
+      success: false,
+      message: "Valid 10-digit phone number is required!"
+    });
+  }
 
-  const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
-  otpStore[phone] = otp;
-  console.log(`Generated OTP for ${phone}: ${otp}`);
-
-  res.json({ otp });
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  otpStore[phone] = {
+    code: otp,
+    timestamp: Date.now(),
+    attempts: 0
+  };
+  
+  console.log(`OTP generated for ${phone}`);
+  res.json({ 
+    success: true,
+    otp: otp,
+    message: "OTP generated successfully"
+  });
 });
 
-// Verify OTP
 app.post("/verify-otp", (req, res) => {
   const { phone, otp } = req.body;
-  if (otpStore[phone] && otpStore[phone].toString() === otp.toString()) {
-    delete otpStore[phone];
-    res.json({ success: true, message: "OTP Verified!" });
-  } else {
-    res.json({ success: false, message: "Invalid OTP! Please try again." });
+  
+  if (!phone || !otp) {
+    return res.status(400).json({
+      success: false,
+      message: "Phone number and OTP are required!"
+    });
   }
+
+  const storedOtp = otpStore[phone];
+  
+  // OTP expiration (5 minutes)
+  if (!storedOtp || Date.now() - storedOtp.timestamp > 300000) {
+    return res.json({
+      success: false,
+      message: "OTP expired or invalid!"
+    });
+  }
+
+  storedOtp.attempts++;
+
+  if (storedOtp.attempts > 3) {
+    delete otpStore[phone];
+    return res.json({
+      success: false,
+      message: "Maximum attempts reached! Request a new OTP."
+    });
+  }
+
+  if (storedOtp.code === otp) {
+    delete otpStore[phone];
+    return res.json({
+      success: true,
+      message: "OTP verified successfully!"
+    });
+  }
+
+  return res.json({
+    success: false,
+    message: "Invalid OTP!",
+    attemptsLeft: 3 - storedOtp.attempts
+  });
 });
 
-// Scan QR Code
 app.post("/scan-qr", async (req, res) => {
   const { serialNumber, phone } = req.body;
+  
   if (!serialNumber || !phone) {
-    return res.status(400).json({ message: "Serial number and phone number are required!" });
+    return res.status(400).json({
+      success: false,
+      message: "Serial number and phone number are required!"
+    });
   }
 
   try {
-    // Check if QR code exists
-    const qrCheck = await pool.query(
-      "SELECT * FROM qr_codes WHERE serial_number = $1", 
-      [serialNumber]
-    );
-
-    if (qrCheck.rows.length === 0) {
-      return res.json({ message: "QR Code not found!" });
-    }
-
-    const existingScan = qrCheck.rows[0];
+    const client = await pool.connect();
     
-    // Check if already scanned by any user
-    if (existingScan.scanned) {
-      if (existingScan.phone_number === phone) {
-        return res.json({ 
-          message: "You have already scanned this QR code!",
-          duplicate: true
-        });
-      } else {
-        return res.json({ 
-          message: "This QR code has already been used!",
-          expired: true
+    try {
+      // Begin transaction
+      await client.query('BEGIN');
+
+      // Check QR code status
+      const qrCheck = await client.query(
+        `SELECT * FROM qr_codes 
+         WHERE serial_number = $1 FOR UPDATE`,
+        [serialNumber]
+      );
+
+      if (qrCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.json({
+          success: false,
+          message: "QR Code not found!"
         });
       }
-    }
 
-    // Update only if not scanned yet
-    const result = await pool.query(
-      `UPDATE qr_codes 
-       SET scanned = TRUE, phone_number = $1, scanned_at = NOW()
-       WHERE serial_number = $2 AND scanned = FALSE
-       RETURNING *`,
-      [phone, serialNumber]
-    );
+      const existingScan = qrCheck.rows[0];
+      
+      if (existingScan.scanned) {
+        await client.query('ROLLBACK');
+        return res.json({
+          success: false,
+          message: existingScan.phone_number === phone ? 
+            "You've already scanned this QR code!" :
+            "This QR code has already been used!",
+          duplicate: true
+        });
+      }
 
-    if (result.rows.length === 0) {
-      return res.json({ 
-        message: "This QR code has already been used!",
-        expired: true
+      // Update QR code status
+      const result = await client.query(
+        `UPDATE qr_codes 
+         SET scanned = TRUE, phone_number = $1, scanned_at = NOW()
+         WHERE serial_number = $2
+         RETURNING *`,
+        [phone, serialNumber]
+      );
+
+      await client.query('COMMIT');
+      
+      return res.json({
+        success: true,
+        message: "QR Code scanned successfully!",
+        qrCode: result.rows[0]
       });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    return res.json({ 
-      message: "QR Code scanned successfully!",
-      success: true,
-      qrCode: result.rows[0]
-    });
-
   } catch (error) {
-    console.error("Database error:", error);
-    return res.status(500).json({ message: "Database error", error });
+    console.error("Scan error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
-// Get all scanned QR codes for a user
 app.post("/get-user-scans", async (req, res) => {
   const { phone } = req.body;
-  if (!phone) return res.status(400).json({ message: "Phone number is required!" });
+  
+  if (!phone) {
+    return res.status(400).json({
+      success: false,
+      message: "Phone number is required!"
+    });
+  }
 
   try {
     const result = await pool.query(
@@ -134,32 +229,70 @@ app.post("/get-user-scans", async (req, res) => {
       scans: result.rows,
       count: result.rows.length
     });
-
   } catch (error) {
     console.error("Database error:", error);
-    return res.status(500).json({ message: "Database error", error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve scans"
+    });
   }
 });
 
-// Add new QR codes (admin endpoint)
 app.post("/add-qr-code", async (req, res) => {
   const { serialNumber } = req.body;
-  if (!serialNumber) return res.status(400).json({ message: "Serial number is required!" });
+  
+  if (!serialNumber) {
+    return res.status(400).json({
+      success: false,
+      message: "Serial number is required!"
+    });
+  }
 
   try {
     await pool.query(
       "INSERT INTO qr_codes (serial_number) VALUES ($1)",
       [serialNumber]
     );
-    return res.json({ success: true, message: "QR Code added successfully!" });
+    
+    return res.json({
+      success: true,
+      message: "QR Code added successfully!"
+    });
   } catch (error) {
     if (error.code === '23505') {
-      return res.status(400).json({ message: "This QR code already exists!" });
+      return res.status(400).json({
+        success: false,
+        message: "This QR code already exists!"
+      });
     }
+    
     console.error("Database error:", error);
-    return res.status(500).json({ message: "Database error", error });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to add QR code"
+    });
   }
 });
 
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  pool.end(() => {
+    console.log('Database pool closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received. Shutting down gracefully...');
+  pool.end(() => {
+    console.log('Database pool closed');
+    process.exit(0);
+  });
+});
+
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
