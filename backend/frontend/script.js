@@ -5,12 +5,31 @@ let attemptCount = 0;
 const MAX_ATTEMPTS = 3;
 
 document.addEventListener('DOMContentLoaded', () => {
+    initEventListeners();
+    checkSession();
+});
+
+function initEventListeners() {
     document.getElementById("phone").addEventListener("input", validatePhoneInput);
     document.getElementById("sendOTP").addEventListener("click", sendOTP);
     document.getElementById("verifyOTP").addEventListener("click", verifyOTP);
     document.getElementById("resendOTP").addEventListener("click", resendOTP);
     document.getElementById("scanQR").addEventListener("click", startScanner);
-});
+    document.getElementById("backFromOTP").addEventListener("click", resetToPhoneInput);
+    document.getElementById("backFromQR").addEventListener("click", resetToOTPInput);
+    document.getElementById("logout").addEventListener("click", logout);
+}
+
+function checkSession() {
+    const phone = sessionStorage.getItem('verifiedPhone');
+    if (phone) {
+        document.getElementById("phone").value = phone;
+        document.getElementById("phone").disabled = true;
+        document.getElementById("sendOTP").disabled = true;
+        document.getElementById("qrSection").style.display = "block";
+        loadUserScans(phone);
+    }
+}
 
 function validatePhoneInput(e) {
     this.value = this.value.replace(/[^0-9]/g, '');
@@ -23,11 +42,12 @@ async function sendOTP() {
     const phone = document.getElementById("phone").value.trim();
     
     if (!/^\d{10}$/.test(phone)) {
-        alert("Please enter a valid 10-digit phone number.");
+        showAlert("Please enter a valid 10-digit phone number.");
         return;
     }
 
     try {
+        showLoader(true);
         const response = await fetch("https://qrcodelogin-main-1.onrender.com/send-otp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -56,13 +76,15 @@ async function sendOTP() {
         startTimer();
     } catch (error) {
         console.error("Error sending OTP:", error);
-        alert("Failed to send OTP. Please try again.");
+        showAlert("Failed to send OTP. Please try again.");
+    } finally {
+        showLoader(false);
     }
 }
 
 function resendOTP() {
     if (attemptCount >= MAX_ATTEMPTS) {
-        alert("Maximum attempts reached. Please try again later.");
+        showAlert("Maximum attempts reached. Please try again later.");
         return;
     }
     sendOTP();
@@ -101,11 +123,12 @@ async function verifyOTP() {
     const otp = document.getElementById("otp").value.trim();
 
     if (!otp) {
-        alert("Please enter the OTP");
+        showAlert("Please enter the OTP");
         return;
     }
 
     try {
+        showLoader(true);
         const response = await fetch("https://qrcodelogin-main-1.onrender.com/verify-otp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -118,12 +141,14 @@ async function verifyOTP() {
         
         if (data.success) {
             clearInterval(otpTimer);
+            sessionStorage.setItem('verifiedPhone', phone);
             document.getElementById("qrSection").style.display = "block";
             document.getElementById("otpSection").style.display = "none";
+            document.getElementById("logout").style.display = "block";
             attemptCount = 0;
             loadUserScans(phone);
         } else {
-            alert("Invalid OTP! Please try again.");
+            showAlert("Invalid OTP! Please try again.");
             if (attemptCount >= MAX_ATTEMPTS) {
                 document.getElementById("otpDisplay").innerText = "Maximum attempts reached. Please try again later.";
                 document.getElementById("otp").disabled = true;
@@ -134,7 +159,9 @@ async function verifyOTP() {
         }
     } catch (error) {
         console.error("Error verifying OTP:", error);
-        alert("OTP verification failed. Please try again.");
+        showAlert("OTP verification failed. Please try again.");
+    } finally {
+        showLoader(false);
     }
 }
 
@@ -168,6 +195,7 @@ async function handleScannedQR(decodedText) {
     const scanMessage = document.getElementById("scanMessage");
 
     try {
+        showLoader(true);
         const response = await fetch("https://qrcodelogin-main-1.onrender.com/scan-qr", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -191,6 +219,17 @@ async function handleScannedQR(decodedText) {
             scanMessage.innerText = "QR Code scanned successfully!";
             scanMessage.style.color = "green";
             loadUserScans(phone);
+            
+            // Send email notification
+            await fetch("https://qrcodelogin-main-1.onrender.com/send-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: "admin@yourdomain.com",
+                    subject: "New QR Code Scan",
+                    text: `User ${phone} scanned QR code: ${decodedText} at ${new Date().toLocaleString()}`
+                })
+            });
         } else {
             scanMessage.innerText = data.message || "Error scanning QR code";
             scanMessage.style.color = "red";
@@ -199,11 +238,14 @@ async function handleScannedQR(decodedText) {
         console.error("Error scanning QR Code:", error);
         scanMessage.innerText = "Failed to scan QR Code. Please try again.";
         scanMessage.style.color = "red";
+    } finally {
+        showLoader(false);
     }
 }
 
 async function loadUserScans(phone) {
     try {
+        showLoader(true);
         const response = await fetch("https://qrcodelogin-main-1.onrender.com/get-user-scans", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -242,5 +284,49 @@ async function loadUserScans(phone) {
         console.error("Error loading user scans:", error);
         document.getElementById("scanMessage").innerText = "Failed to load scan history";
         document.getElementById("scanMessage").style.color = "red";
+    } finally {
+        showLoader(false);
     }
+}
+
+function resetToPhoneInput() {
+    document.getElementById("otpSection").style.display = "none";
+    document.getElementById("phone").disabled = false;
+    document.getElementById("sendOTP").disabled = false;
+    clearInterval(otpTimer);
+}
+
+function resetToOTPInput() {
+    document.getElementById("qrSection").style.display = "none";
+    document.getElementById("otpSection").style.display = "block";
+    if (scanner) {
+        scanner.clear();
+        scanner = null;
+    }
+}
+
+function logout() {
+    sessionStorage.removeItem('verifiedPhone');
+    location.reload();
+}
+
+function showAlert(message) {
+    const alertDiv = document.createElement("div");
+    alertDiv.className = "alert";
+    alertDiv.textContent = message;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 3000);
+}
+
+function showLoader(show) {
+    const loader = document.getElementById("loader") || createLoader();
+    loader.style.display = show ? "block" : "none";
+}
+
+function createLoader() {
+    const loader = document.createElement("div");
+    loader.id = "loader";
+    loader.innerHTML = `<div class="loader-spinner"></div>`;
+    document.body.appendChild(loader);
+    return loader;
 }
