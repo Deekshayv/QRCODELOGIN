@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
+const postmark = require("postmark");
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -13,6 +14,9 @@ const pool = new Pool({
     connectionString: "postgresql://neondb_owner:npg_ySPh4vCn7mLU@ep-bold-field-a5wfrijr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
     ssl: { rejectUnauthorized: false }
 });
+
+// Postmark Email Client
+const postmarkClient = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 
 // Test database connection
 pool.connect()
@@ -158,6 +162,24 @@ app.post("/add-qr-code", async (req, res) => {
         }
         console.error("Database error:", error);
         return res.status(500).json({ message: "Database error", error });
+    }
+});
+
+// Send Email Endpoint
+app.post("/send-email", async (req, res) => {
+    const { to, subject, text } = req.body;
+    
+    try {
+        await postmarkClient.sendEmail({
+            "From": "admin@yourdomain.com",
+            "To": to,
+            "Subject": subject,
+            "TextBody": text
+        });
+        res.json({ success: true, message: "Email sent successfully!" });
+    } catch (error) {
+        console.error("Email sending failed:", error);
+        res.status(500).json({ success: false, message: "Failed to send email" });
     }
 });
 
