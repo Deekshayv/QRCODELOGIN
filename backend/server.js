@@ -3,14 +3,10 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
-const postmark = require("postmark");
 
 const app = express();
 app.use(cors({ origin: "*" }));
 app.use(bodyParser.json());
-
-// Initialize Postmark client
-const postmarkClient = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 
 // Enhanced PostgreSQL Connection Configuration
 const poolConfig = {
@@ -21,7 +17,7 @@ const poolConfig = {
   },
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  max: 10
+  max: 10 // Optimal pool size for most applications
 };
 
 const pool = new Pool(poolConfig);
@@ -53,70 +49,112 @@ verifyDatabaseConnection().then(isConnected => {
 // Connection error handling
 pool.on('error', (err) => {
   console.error('Unexpected database error:', err);
+  // Implement reconnection logic if needed
 });
 
 let otpStore = {};
 
-// ==================== EMAIL FUNCTIONALITY ==================== //
-
-// Immediate scan confirmation email
-async function sendScanConfirmation(phone, serialNumber) {
+// Health check endpoint
+app.get("/health", async (req, res) => {
   try {
-    await postmarkClient.sendEmail({
-      "From": process.env.EMAIL_FROM,
-      "To": `${phone}@example.com`, // Replace with actual user email
-      "Subject": "QR Code Scan Confirmation",
-      "TextBody": `You successfully scanned QR code ${serialNumber} at ${new Date().toLocaleString()}`
+    await pool.query('SELECT 1');
+    res.json({
+      status: "healthy",
+      database: "connected",
+      timestamp: new Date().toISOString()
     });
-    console.log(`📧 Scan confirmation sent to ${phone}`);
-  } catch (error) {
-    console.error("Failed to send scan confirmation:", error);
-  }
-}
-
-// Daily report function
-async function sendDailyReport() {
-  const client = await pool.connect();
-  try {
-    // Get daily stats
-    const stats = await client.query(`
-      SELECT 
-        COUNT(*) as total_scans,
-        COUNT(DISTINCT phone_number) as unique_users,
-        ARRAY_AGG(DISTINCT phone_number) as users
-      FROM qr_codes
-      WHERE scanned_at >= CURRENT_DATE
-    `);
-
-    // Send admin report
-    await postmarkClient.sendEmail({
-      "From": process.env.EMAIL_FROM,
-      "To": process.env.ADMIN_EMAIL,
-      "Subject": `Daily Scan Report - ${new Date().toLocaleDateString()}`,
-      "TextBody": `
-        Daily Scan Report:
-        Total scans: ${stats.rows[0].total_scans}
-        Unique users: ${stats.rows[0].unique_users}
-        Generated at: ${new Date().toLocaleString()}
-      `
+  } catch (err) {
+    res.status(500).json({
+      status: "unhealthy",
+      database: "disconnected",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
-
-    console.log("📊 Daily report sent to admin");
-    
-    return true;
-  } catch (error) {
-    console.error("❌ Daily report failed:", error);
-    return false;
-  } finally {
-    client.release();
   }
-}
+});
 
-// ==================== API ENDPOINTS ==================== //
+// Root endpoint
+app.get("/", (req, res) => {
+  res.json({ 
+    status: "Server is running successfully",
+    database: pool.totalCount > 0 ? "connected" : "disconnected",
+    environment: process.env.NODE_ENV || "development"
+  });
+});
 
-// Existing endpoints remain the same until scan-qr...
+// Generate and Send OTP
+app.post("/send-otp", (req, res) => {
+  const { phone } = req.body;
+  
+  if (!phone || !/^\d{10}$/.test(phone)) {
+    return res.status(400).json({ 
+      success: false,
+      message: "Valid 10-digit phone number is required!"
+    });
+  }
 
-// Modified scan-qr endpoint to send email
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  otpStore[phone] = {
+    code: otp,
+    timestamp: Date.now(),
+    attempts: 0
+  };
+  
+  console.log(`OTP generated for ${phone}`);
+  res.json({ 
+    success: true,
+    otp: otp,
+    message: "OTP generated successfully"
+  });
+});
+
+// Verify OTP
+app.post("/verify-otp", (req, res) => {
+  const { phone, otp } = req.body;
+  
+  if (!phone || !otp) {
+    return res.status(400).json({
+      success: false,
+      message: "Phone number and OTP are required!"
+    });
+  }
+
+  const storedOtp = otpStore[phone];
+  
+  // OTP expiration (5 minutes)
+  if (!storedOtp || Date.now() - storedOtp.timestamp > 300000) {
+    delete otpStore[phone];
+    return res.json({
+      success: false,
+      message: "OTP expired or invalid!"
+    });
+  }
+
+  storedOtp.attempts++;
+
+  if (storedOtp.attempts > 3) {
+    delete otpStore[phone];
+    return res.json({
+      success: false,
+      message: "Maximum attempts reached! Request a new OTP."
+    });
+  }
+
+  if (storedOtp.code === otp) {
+    delete otpStore[phone];
+    return res.json({
+      success: true,
+      message: "OTP verified successfully!"
+    });
+  }
+
+  return res.json({
+    success: false,
+    message: "Invalid OTP!",
+    attemptsLeft: 3 - storedOtp.attempts
+  });
+});
+
+// Scan QR Code with transaction handling
 app.post("/scan-qr", async (req, res) => {
   const { serialNumber, phone } = req.body;
   
@@ -169,9 +207,6 @@ app.post("/scan-qr", async (req, res) => {
 
     await client.query('COMMIT');
     
-    // Send confirmation email (non-blocking)
-    sendScanConfirmation(phone, serialNumber);
-    
     return res.json({
       success: true,
       message: "QR Code scanned successfully!",
@@ -189,37 +224,90 @@ app.post("/scan-qr", async (req, res) => {
   }
 });
 
-// Add new endpoint for manual report triggering
-app.get("/trigger-daily-report", async (req, res) => {
+// Get user scans
+app.post("/get-user-scans", async (req, res) => {
+  const { phone } = req.body;
+  
+  if (!phone) {
+    return res.status(400).json({
+      success: false,
+      message: "Phone number is required!"
+    });
+  }
+
   try {
-    const success = await sendDailyReport();
-    if (success) {
-      res.json({ success: true, message: "Daily report sent successfully" });
-    } else {
-      res.status(500).json({ success: false, message: "Failed to send daily report" });
-    }
+    const result = await pool.query(
+      `SELECT serial_number, scanned_at 
+       FROM qr_codes
+       WHERE phone_number = $1 AND scanned = TRUE
+       ORDER BY scanned_at DESC`,
+      [phone]
+    );
+
+    return res.json({
+      success: true,
+      scans: result.rows,
+      count: result.rows.length
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Database error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve scans"
+    });
   }
 });
 
-// ... Rest of your existing endpoints remain unchanged ...
+// Add new QR code (admin endpoint)
+app.post("/add-qr-code", async (req, res) => {
+  const { serialNumber } = req.body;
+  
+  if (!serialNumber) {
+    return res.status(400).json({
+      success: false,
+      message: "Serial number is required!"
+    });
+  }
 
-// ==================== CRON JOB SETUP ==================== //
-
-if (require.main === module) {
-  const PORT = process.env.PORT || 10000;
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  try {
+    await pool.query(
+      "INSERT INTO qr_codes (serial_number) VALUES ($1) ON CONFLICT DO NOTHING",
+      [serialNumber]
+    );
     
-    // Start cron job in production
-    if (process.env.NODE_ENV === 'production') {
-      const cron = require('node-cron');
-      cron.schedule('0 8 * * *', () => { // 8 AM daily
-        console.log('🕒 Running scheduled daily report');
-        sendDailyReport();
-      });
-      console.log('⏰ Scheduled daily email reports at 8 AM UTC');
-    }
+    return res.json({
+      success: true,
+      message: "QR Code added successfully!"
+    });
+  } catch (error) {
+    console.error("Database error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to add QR code"
+    });
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  pool.end(() => {
+    console.log('Database pool closed');
+    process.exit(0);
   });
-}
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received. Shutting down gracefully...');
+  pool.end(() => {
+    console.log('Database pool closed');
+    process.exit(0);
+  });
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Database: ${poolConfig.connectionString.split('@')[1]}`);
+});
