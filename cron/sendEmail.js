@@ -4,74 +4,66 @@ const postmark = require('postmark');
 
 // Database connection
 const pool = new Pool({
-    connectionString: "postgresql://neondb_owner:npg_ySPh4vCn7mLU@ep-bold-field-a5wfrijr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require",
-    ssl: { rejectUnauthorized: false }
+  connectionString: process.env.DATABASE_URL,
+  ssl: { 
+    rejectUnauthorized: false,
+    sslmode: 'require'
+  },
+  idleTimeoutMillis: 30000
 });
 
 // Postmark client
 const postmarkClient = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 
-// Function to get daily scan stats
-async function getDailyStats() {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                COUNT(*) as total_scans,
-                COUNT(DISTINCT phone_number) as unique_users
-            FROM qr_codes
-            WHERE scanned = TRUE
-            AND scanned_at >= CURRENT_DATE
-        `);
-        return result.rows[0];
-    } catch (error) {
-        console.error("Database error:", error);
-        return null;
-    }
-}
-
-// Function to send email
 async function sendDailyReport() {
-    const stats = await getDailyStats();
+  const client = await pool.connect();
+  try {
+    console.log('📅 Generating daily scan report...');
     
-    if (!stats) {
-        console.error("Failed to fetch daily stats");
-        return;
-    }
+    // Get daily stats
+    const stats = await client.query(`
+      SELECT 
+        COUNT(*) as total_scans,
+        COUNT(DISTINCT phone_number) as unique_users,
+        ARRAY_AGG(DISTINCT phone_number) as users
+      FROM qr_codes
+      WHERE scanned_at >= CURRENT_DATE
+    `);
 
-    const emailText = `
-        Daily QR Code Scan Report:
-        - Total Scans Today: ${stats.total_scans}
-        - Unique Users: ${stats.unique_users}
-        
-        Generated at: ${new Date().toISOString()}
-    `;
+    // Send admin report
+    await postmarkClient.sendEmail({
+      "From": process.env.EMAIL_FROM,
+      "To": process.env.ADMIN_EMAIL,
+      "Subject": `Daily Scan Report - ${new Date().toLocaleDateString()}`,
+      "TextBody": `
+        Daily Scan Report:
+        Total scans: ${stats.rows[0].total_scans}
+        Unique users: ${stats.rows[0].unique_users}
+        Generated at: ${new Date().toLocaleString()}
+      `
+    });
 
-    try {
-        await postmarkClient.sendEmail({
-            "From": "admin@yourdomain.com",
-            "To": "admin@yourdomain.com", // Change to your admin email
-            "Subject": "Daily QR Code Scan Report",
-            "TextBody": emailText
-        });
-        console.log("Daily report email sent successfully!");
-    } catch (error) {
-        console.error("Failed to send email:", error);
-    }
+    console.log('✅ Daily report sent to admin');
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send daily report:', error);
+    return false;
+  } finally {
+    client.release();
+    await pool.end();
+  }
 }
 
-// Run daily at 11:59 PM
-const cron = require('node-cron');
-cron.schedule('59 23 * * *', () => {
-    console.log('Running daily email report...');
-    sendDailyReport();
-});
-
-// For manual testing
-if (process.argv.includes('--manual')) {
-    console.log('Running manual email report...');
-    sendDailyReport()
-        .then(() => process.exit(0))
-        .catch(() => process.exit(1));
+// Run immediately if executed directly (for Render cron jobs)
+if (require.main === module) {
+  sendDailyReport()
+    .then(success => process.exit(success ? 0 : 1))
+    .catch(error => {
+      console.error('Fatal error:', error);
+      process.exit(1);
+    });
 }
 
-console.log('Cron job scheduler started...');
+// Export for testing
+module.exports = { sendDailyReport };
